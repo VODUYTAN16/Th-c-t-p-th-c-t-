@@ -1,0 +1,72 @@
+const API_URL = import.meta.env.VITE_API_URL as string;
+
+export async function apiFetch<T>(
+  path: string,
+  options: RequestInit = {},
+  token?: string | null
+): Promise<T> {
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  if (!(options.body instanceof FormData) && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || "Request failed");
+  }
+  return res.json();
+}
+
+export async function uploadDocument(
+  file: File,
+  docType: "cv" | "jd",
+  token: string
+) {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("doc_type", docType);
+  return apiFetch<{ id: string; type: string; file_name: string }>(
+    "/documents/upload",
+    { method: "POST", body: form },
+    token
+  );
+}
+
+export interface Session {
+  id: string;
+  title: string | null;
+  position_applied: string;
+  industry: string | null;
+  language: string;
+  status: string;
+  current_question_index: number;
+  created_at: string;
+  error_message?: string | null;
+}
+
+export interface Report {
+  session_id: string;
+  overall_score: number;
+  avg_content: number;
+  avg_relevance: number;
+  avg_completeness: number;
+  avg_presentation: number;
+  summary: string;
+  cv_suggestions: Array<{ section: string; suggestion: string; priority: string }>;
+  evaluations: Array<{
+    question_text: string;
+    category: string;
+    score_overall: number;
+    feedback: string;
+    sample_answer: string;
+    strengths: string[];
+    weaknesses: string[];
+  }>;
+  pdf_url: string | null;
+}

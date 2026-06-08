@@ -1,0 +1,266 @@
+generator client {
+  provider                      = "prisma-client-py"
+  interface                     = "asyncio"
+  recursive_type_depth            = 5
+  enable_experimental_decimal     = true
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+enum DocumentType {
+  cv
+  jd
+
+  @@map("document_type")
+}
+
+enum ParseStatus {
+  pending
+  processing
+  done
+  failed
+
+  @@map("parse_status")
+}
+
+enum SessionStatus {
+  draft
+  parsing
+  ready
+  active
+  evaluating
+  completed
+  failed
+
+  @@map("session_status")
+}
+
+enum QuestionCategory {
+  screening
+  technical
+  behavioral
+  project
+
+  @@map("question_category")
+}
+
+enum MessageRole {
+  interviewer
+  candidate
+  system
+
+  @@map("message_role")
+}
+
+enum MessageType {
+  question
+  answer
+  follow_up
+  system
+
+  @@map("message_type")
+}
+
+enum AppLanguage {
+  vi
+  en
+
+  @@map("app_language")
+}
+
+enum EmbeddingSection {
+  skill
+  experience
+  project
+  education
+  jd
+
+  @@map("embedding_section")
+}
+
+model Profile {
+  id                String       @id @db.Uuid
+  fullName          String?      @map("full_name")
+  avatarUrl         String?      @map("avatar_url")
+  preferredLanguage AppLanguage  @default(vi) @map("preferred_language")
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  documents         Document[]
+  interviewSessions InterviewSession[]
+
+  @@map("profiles")
+}
+
+model Document {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String       @map("user_id") @db.Uuid
+  type          DocumentType
+  fileName      String       @map("file_name")
+  mimeType      String       @map("mime_type")
+  fileSizeBytes BigInt       @default(0) @map("file_size_bytes")
+  storageBucket String       @map("storage_bucket")
+  storagePath   String       @map("storage_path")
+  rawText       String?      @map("raw_text")
+  parseStatus   ParseStatus  @default(pending) @map("parse_status")
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user              Profile            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cvSessions        InterviewSession[] @relation("CvDocument")
+  jdSessions        InterviewSession[] @relation("JdDocument")
+  embeddings        DocumentEmbedding[]
+
+  @@index([userId, type])
+  @@index([parseStatus])
+  @@map("documents")
+}
+
+model InterviewSession {
+  id                   String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String        @map("user_id") @db.Uuid
+  title                String?
+  positionApplied      String        @map("position_applied")
+  industry             String?
+  language             AppLanguage   @default(vi)
+  status               SessionStatus @default(draft)
+  cvDocumentId         String        @map("cv_document_id") @db.Uuid
+  jdDocumentId         String?       @map("jd_document_id") @db.Uuid
+  currentQuestionIndex Int           @default(0) @map("current_question_index")
+  followUpCount        Int           @default(0) @map("follow_up_count")
+  startedAt            DateTime?     @map("started_at") @db.Timestamptz(6)
+  completedAt          DateTime?     @map("completed_at") @db.Timestamptz(6)
+  errorMessage         String?       @map("error_message")
+  createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user              Profile            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cvDocument        Document           @relation("CvDocument", fields: [cvDocumentId], references: [id])
+  jdDocument        Document?          @relation("JdDocument", fields: [jdDocumentId], references: [id])
+  candidateProfile  CandidateProfile?
+  questions         Question[]
+  messages          Message[]
+  evaluations       AnswerEvaluation[]
+  report            InterviewReport?
+  embeddings        DocumentEmbedding[]
+
+  @@index([userId, status])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("interview_sessions")
+}
+
+model CandidateProfile {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId       String   @unique @map("session_id") @db.Uuid
+  skills          Json     @default("[]")
+  experiences     Json     @default("[]")
+  projects        Json     @default("[]")
+  education       Json     @default("[]")
+  achievements    Json     @default("[]")
+  jdGapAnalysis   Json     @default("{}") @map("jd_gap_analysis")
+  parsedAt        DateTime @default(now()) @map("parsed_at") @db.Timestamptz(6)
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("candidate_profiles")
+}
+
+model DocumentEmbedding {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId  String           @map("document_id") @db.Uuid
+  sessionId   String?          @map("session_id") @db.Uuid
+  chunkIndex  Int              @map("chunk_index")
+  sectionType EmbeddingSection @map("section_type")
+  chunkText   String           @map("chunk_text")
+  // embedding stored via raw SQL (pgvector)
+
+  document Document          @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  session  InterviewSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("document_embeddings")
+}
+
+model Question {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId        String           @map("session_id") @db.Uuid
+  category         QuestionCategory
+  questionText     String           @map("question_text")
+  orderIndex       Int              @map("order_index")
+  isFollowUp       Boolean          @default(false) @map("is_follow_up")
+  parentQuestionId String?          @map("parent_question_id") @db.Uuid
+  sourceContext    Json?            @map("source_context")
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  session        InterviewSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  parentQuestion Question?          @relation("FollowUp", fields: [parentQuestionId], references: [id])
+  followUps      Question[]         @relation("FollowUp")
+  messages       Message[]
+  evaluations    AnswerEvaluation[]
+
+  @@index([sessionId, orderIndex])
+  @@map("questions")
+}
+
+model Message {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId      String      @map("session_id") @db.Uuid
+  questionId     String?     @map("question_id") @db.Uuid
+  role           MessageRole
+  messageType    MessageType @map("message_type")
+  content        String
+  audioBucket    String?     @map("audio_bucket")
+  audioPath      String?     @map("audio_path")
+  sequenceNumber Int         @map("sequence_number")
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  session  InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  question Question?        @relation(fields: [questionId], references: [id])
+
+  @@index([sessionId, sequenceNumber])
+  @@map("messages")
+}
+
+model AnswerEvaluation {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId          String   @map("session_id") @db.Uuid
+  questionId         String   @map("question_id") @db.Uuid
+  scoreContent       Decimal  @map("score_content") @db.Decimal(4, 2)
+  scoreRelevance     Decimal  @map("score_relevance") @db.Decimal(4, 2)
+  scoreCompleteness  Decimal  @map("score_completeness") @db.Decimal(4, 2)
+  scorePresentation  Decimal  @map("score_presentation") @db.Decimal(4, 2)
+  scoreOverall       Decimal  @map("score_overall") @db.Decimal(4, 2)
+  strengths          String[]
+  weaknesses         String[]
+  feedback           String
+  sampleAnswer       String?  @map("sample_answer")
+  evaluatedAt        DateTime @default(now()) @map("evaluated_at") @db.Timestamptz(6)
+
+  session  InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  question Question         @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, questionId])
+  @@map("answer_evaluations")
+}
+
+model InterviewReport {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId        String   @unique @map("session_id") @db.Uuid
+  overallScore     Decimal  @map("overall_score") @db.Decimal(4, 2)
+  avgContent       Decimal  @map("avg_content") @db.Decimal(4, 2)
+  avgRelevance     Decimal  @map("avg_relevance") @db.Decimal(4, 2)
+  avgCompleteness  Decimal  @map("avg_completeness") @db.Decimal(4, 2)
+  avgPresentation  Decimal  @map("avg_presentation") @db.Decimal(4, 2)
+  summary          String
+  cvSuggestions    Json     @default("[]") @map("cv_suggestions")
+  pdfBucket        String?  @map("pdf_bucket")
+  pdfPath          String?  @map("pdf_path")
+  generatedAt      DateTime @default(now()) @map("generated_at") @db.Timestamptz(6)
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("interview_reports")
+}

@@ -1,0 +1,19 @@
+Danh gia cau tra loi phong van theo 4 tieu chi (thang 0-10):
+1. Noi dung (content): do chinh xac, kien thuc, vi du cu the
+2. Do lien quan (relevance): bam sat cau hoi va vi tri
+3. Tinh day du (completeness): bao quat day du (STAR cho behavioral)
+4. Trinh bay (presentation): ro rang, mach lac, tu tin
+
+Tra ve JSON:
+{{
+  "score_content": 0,
+  "score_relevance": 0,
+  "score_completeness": 0,
+  "score_presentation": 0,
+  "strengths": ["..."],
+  "weaknesses": ["..."],
+  "feedback": "...",
+  "sample_answer": "..."
+}}
+
+Ngon ngu nhan xet: {language}

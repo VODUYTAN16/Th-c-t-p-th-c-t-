@@ -1,0 +1,82 @@
+
+### **MÔ TẢ CHI TIẾT DỰ ÁN: XÂY DỰNG HỆ THỐNG AI INTERVIEW ASSISTANT HỖ TRỢ LUYỆN PHỎNG VẤN BẰNG GIỌNG NÓI**
+
+#### **1. Tên đề tài**
+Xây dựng nền tảng **AI Interview Assistant** – Hệ thống hỗ trợ luyện phỏng vấn thông minh bằng giọng nói.
+
+#### **2. Mô tả tổng quát**
+Hệ thống là một **nền tảng web** giúp người dùng luyện tập phỏng vấn việc làm một cách thực tế và thông minh. Người dùng tải lên **CV cá nhân** (và tùy chọn Job Description), hệ thống sử dụng trí tuệ nhân tạo để phân tích thông tin, tạo ra bộ câu hỏi phỏng vấn được **cá nhân hóa cao**, sau đó tiến hành buổi phỏng vấn **thực tế bằng giọng nói** (giống phỏng vấn online). 
+
+Trong suốt buổi phỏng vấn, AI đóng vai nhà tuyển dụng, đặt câu hỏi, lắng nghe câu trả lời qua microphone, chuyển đổi giọng nói thành văn bản thời gian thực và duy trì hội thoại tự nhiên. Sau khi kết thúc buổi phỏng vấn, hệ thống tự động **đánh giá chi tiết** theo các tiêu chí chuyên nghiệp, đưa ra điểm số, nhận xét cụ thể và gợi ý cải thiện, đồng thời đề xuất chỉnh sửa CV cho phù hợp hơn với vị trí ứng tuyển.
+
+#### **3. Quy trình hoạt động từ Input đến Output**
+
+**Input:**
+- File CV của ứng viên (PDF, DOCX).
+- Job Description (mô tả công việc) – tùy chọn.
+- Thông tin bổ sung (ngành nghề, vị trí ứng tuyển).
+
+**Quy trình xử lý (Backend - Python):**
+
+1. **Phân tích tài liệu (Document Parsing)**  
+   Hệ thống tự động trích xuất: kỹ năng, kinh nghiệm làm việc, dự án, học vấn, thành tựu… và so sánh với Job Description.
+
+2. **Tạo câu hỏi phỏng vấn (Question Generation)**  
+   Tạo ra **10–15 câu hỏi** được cá nhân hóa, bao gồm:
+   - Câu hỏi sàng lọc (Screening)
+   - Câu hỏi kỹ thuật (Technical)
+   - Câu hỏi hành vi (Behavioral – STAR method)
+   - Câu hỏi sâu về dự án thực tế của ứng viên
+
+3. **Buổi phỏng vấn bằng giọng nói (Voice Interview)**  
+   - AI Interviewer giao tiếp bằng **giọng nói tự nhiên** (hỗ trợ tiếng Việt và tiếng Anh).
+   - Người dùng trả lời qua microphone.
+   - Hệ thống lắng nghe, chuyển đổi Speech-to-Text thời gian thực, duy trì ngữ cảnh hội thoại và đưa ra follow-up questions.
+
+4. **Chuyển đổi và phân tích câu trả lời**  
+   Toàn bộ cuộc trò chuyện được ghi âm, chuyển thành văn bản và ánh xạ với từng câu hỏi.
+
+5. **Đánh giá và Feedback (Evaluation & Feedback)**  
+   Hệ thống đánh giá từng câu trả lời theo **4 tiêu chí**:
+
+   | Tiêu chí       | Mô tả đánh giá |
+   |----------------|----------------|
+   | **Nội dung**   | Độ chính xác của thông tin, kiến thức và ví dụ cụ thể |
+   | **Độ liên quan** | Mức độ bám sát câu hỏi và yêu cầu của vị trí công việc |
+   | **Tính đầy đủ** | Câu trả lời có bao quát đầy đủ các khía cạnh quan trọng (STAR method) |
+   | **Trình bày**  | Sự rõ ràng, mạch lạc, tự tin và tự nhiên trong cách diễn đạt |
+
+   → Tổng hợp điểm số, nhận xét chi tiết (điểm mạnh, điểm yếu), gợi ý cách trả lời tốt hơn.
+
+6. **Gợi ý cải thiện CV**  
+   Hệ thống đề xuất chỉnh sửa CV: bổ sung từ khóa, nhấn mạnh kinh nghiệm phù hợp, khắc phục điểm yếu so với JD.
+
+**Output:**
+- Báo cáo chi tiết sau phỏng vấn (PDF).
+- Điểm số tổng thể và theo từng tiêu chí.
+- Bản ghi transcript đầy đủ.
+- Gợi ý câu trả lời mẫu.
+- Gợi ý chỉnh sửa CV.
+- Thống kê tiến bộ theo thời gian (Dashboard).
+
+#### **4. Mục tiêu của đề tài**
+- Mô phỏng gần nhất buổi phỏng vấn thực tế.
+- Cá nhân hóa tối đa bộ câu hỏi dựa trên CV và JD.
+- Cung cấp đánh giá khách quan, chi tiết và actionable.
+- Giúp người dùng theo dõi sự tiến bộ qua lịch sử và thống kê.
+- Tạo công cụ luyện tập linh hoạt, mọi lúc mọi nơi.
+
+#### **5. Đối tượng sử dụng**
+
+| Đối tượng                        | Nhu cầu sử dụng |
+|----------------------------------|-----------------|
+| Sinh viên / Người mới ra trường  | Làm quen áp lực phỏng vấn, rèn kỹ năng trả lời |
+| Người đi làm có kinh nghiệm      | Luyện tập cho vị trí cụ thể, cải thiện điểm yếu |
+| Trung tâm đào tạo / Trường đại học | Tích hợp làm công cụ hỗ trợ dạy kỹ năng mềm |
+
+#### **6. Công nghệ chính**
+- **Frontend**: React (với TypeScript, Tailwind CSS).
+- **Backend**: Python (FastAPI).
+- **AI Core**: Multi-Agent system (CrewAI / LangGraph + LangChain).
+- **Voice**: Whisper (STT), TTS Vietnamese, WebRTC.
+- **Database**: PostgreSQL + Vector DB.
