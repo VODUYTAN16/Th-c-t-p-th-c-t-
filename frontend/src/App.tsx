@@ -7,6 +7,7 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import ReportPage from "./pages/ReportPage";
 import UploadPage from "./pages/UploadPage";
+import CVSuggestionPage from "./pages/CVSuggestionPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -30,6 +31,7 @@ export default function App() {
         <Route path="/" element={<UploadPage />} />
         <Route path="/interview/:sessionId" element={<InterviewPage />} />
         <Route path="/report/:sessionId" element={<ReportPage />} />
+        <Route path="/report/:sessionId/cv-suggestions" element={<CVSuggestionPage />} />
         <Route path="/history" element={<HistoryPage />} />
       </Route>
     </Routes>

@@ -1,5 +1,23 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  ClockIcon,
+  BriefcaseIcon,
+  CalendarIcon,
+  LanguageIcon,
+  PlusIcon,
+  DocumentTextIcon,
+  PlayIcon,
+  ChartPieIcon,
+  MagnifyingGlassIcon,
+  VideoCameraIcon,
+  CheckCircleIcon,
+  ChartBarIcon,
+  ChatBubbleLeftRightIcon,
+  SparklesIcon
+} from "@heroicons/react/24/outline";
+import { StarIcon } from "@heroicons/react/24/solid";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../contexts/AuthContext";
 import { apiFetch, type Session } from "../lib/api";
 
@@ -13,89 +31,434 @@ const STATUS_LABELS: Record<string, string> = {
   failed: "Thất bại",
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  ready: "bg-blue-100 text-blue-700",
-  active: "bg-yellow-100 text-yellow-700",
-  evaluating: "bg-purple-100 text-purple-700",
-  completed: "bg-green-100 text-green-700",
-  failed: "bg-red-100 text-red-700",
-  parsing: "bg-orange-100 text-orange-700",
-  draft: "bg-slate-100 text-slate-600",
+const StatusBadge = ({ status }: { status: string }) => {
+  const configs: Record<string, { bg: string; text: string }> = {
+    ready: { bg: "bg-blue-100", text: "text-blue-700" },
+    active: { bg: "bg-amber-100", text: "text-amber-700" },
+    evaluating: { bg: "bg-purple-100", text: "text-purple-700" },
+    completed: { bg: "bg-emerald-100", text: "text-emerald-700" },
+    failed: { bg: "bg-red-100", text: "text-red-700" },
+    parsing: { bg: "bg-orange-100", text: "text-orange-700" },
+    draft: { bg: "bg-slate-100", text: "text-slate-700" },
+  };
+
+  const config = configs[status] || configs.draft;
+
+  return (
+    <span
+      className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${config.bg} ${config.text}`}
+    >
+      {STATUS_LABELS[status] || status}
+    </span>
+  );
+};
+
+const EVALUATION_CRITERIA = [
+  { num: "01", title: "Nội dung", label: "Tiêu chí 1", desc: "Đánh giá chuyên sâu về độ chính xác của thông tin, nền tảng kiến thức chuyên môn và chất lượng của các ví dụ thực tế được đưa ra trong câu trả lời.", Icon: DocumentTextIcon, bg: "bg-blue-50", color: "text-blue-600" },
+  { num: "02", title: "Độ liên quan", label: "Tiêu chí 2", desc: "Phân tích mức độ bám sát trọng tâm câu hỏi, tránh lan man và đo lường sự phù hợp trực tiếp với các yêu cầu của vị trí công việc.", Icon: BriefcaseIcon, bg: "bg-emerald-50", color: "text-emerald-600" },
+  { num: "03", title: "Tính đầy đủ", label: "Tiêu chí 3", desc: "Kiểm tra khả năng bao quát vấn đề từ đầu đến cuối, đặc biệt chú trọng việc áp dụng phương pháp STAR (Tình huống, Nhiệm vụ, Hành động, Kết quả).", Icon: ChartPieIcon, bg: "bg-amber-50", color: "text-amber-600" },
+  { num: "04", title: "Trình bày", label: "Tiêu chí 4", desc: "Đánh giá kỹ năng giao tiếp tổng thể bao gồm sự lưu loát, mạch lạc, cấu trúc trả lời rõ ràng, phong thái tự tin và cách diễn đạt tự nhiên.", Icon: ChatBubbleLeftRightIcon, bg: "bg-violet-50", color: "text-violet-600" },
+];
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.1 } }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0 }
 };
 
 export default function HistoryPage() {
   const { accessToken } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [activeCriterion, setActiveCriterion] = useState(0);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!accessToken) return;
     apiFetch<Session[]>("/sessions", {}, accessToken)
-      .then(setSessions)
+      .then((data) => {
+        if (Array.isArray(data)) {
+          const sorted = data.sort(
+            (a, b) => new Date(b.created_at || Date.now()).getTime() - new Date(a.created_at || Date.now()).getTime()
+          );
+          setSessions(sorted);
+        } else {
+          setSessions([]);
+        }
+      })
+      .catch(() => setSessions([]))
       .finally(() => setLoading(false));
   }, [accessToken]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setActiveCriterion((prev) => (prev + 1) % EVALUATION_CRITERIA.length);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [activeCriterion]);
+
   if (loading) {
-    return <div className="text-center py-16 text-slate-500">Đang tải...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center py-32">
+        <div className="w-12 h-12 border-4 border-violet-200 border-t-violet-600 rounded-full animate-spin mb-4"></div>
+        <p className="text-slate-500 font-medium">Đang tải lịch sử phỏng vấn...</p>
+      </div>
+    );
   }
 
-  return (
-    <div className="max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Lịch sử phỏng vấn</h1>
+  const completedCount = sessions.filter((s) => s.status === "completed").length;
 
-      {sessions.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-xl border">
-          <p className="text-slate-500 mb-4">Chưa có buổi phỏng vấn nào</p>
-          <Link to="/" className="text-primary-600 hover:underline">
-            Tạo buổi phỏng vấn đầu tiên
-          </Link>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {sessions.map((s) => (
-            <div
-              key={s.id}
-              className="bg-white rounded-xl border p-4 flex items-center justify-between hover:shadow-sm transition"
-            >
-              <div>
-                <p className="font-medium">{s.title || s.position_applied}</p>
-                <p className="text-sm text-slate-500">
-                  {new Date(s.created_at).toLocaleDateString("vi-VN")} · {s.language === "vi" ? "Tiếng Việt" : "English"}
-                </p>
+  const filteredSessions = sessions.filter((s) => {
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch =
+      (s.title || s.position_applied || "").toLowerCase().includes(searchLower) ||
+      (s.industry || "").toLowerCase().includes(searchLower);
+
+    let matchesStatus = true;
+    if (statusFilter === "completed") {
+      matchesStatus = s.status === "completed";
+    } else if (statusFilter === "processing") {
+      matchesStatus = ["draft", "parsing", "ready", "active", "evaluating"].includes(s.status);
+    }
+
+    return matchesSearch && matchesStatus;
+  });
+
+  return (
+    <div className="max-w-6xl mx-auto px-4 py-8 pb-20 font-sans min-h-screen">
+      <div className="grid lg:grid-cols-3 gap-8 items-start">
+        <div className="lg:col-span-2 space-y-6">
+
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center justify-between"
+          >
+            <div>
+              <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-slate-700 tracking-tight">
+                Lịch sử <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-indigo-600">phỏng vấn</span>
+              </h1>
+              <p className="text-slate-500 mt-2 font-medium flex items-center gap-2 text-base">
+                <ClockIcon className="w-6 h-6 text-violet-500" />
+                Xem lại các phiên phỏng vấn và kết quả đánh giá của bạn
+              </p>
+            </div>
+          </motion.div>
+
+          {/* Stats Component - Chuyển sang cột trái */}
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+          >
+            <div className="bg-gradient-to-br from-white to-slate-50/80 backdrop-blur-xl rounded-2xl p-5 border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex items-center gap-4 hover:border-violet-200 hover:shadow-[0_8px_30px_rgba(124,58,237,0.08)] transition-all duration-300 group relative overflow-hidden">
+              <motion.div animate={{ y: [0, -6, 0], opacity: [0.4, 0.8, 0.4] }} transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }} className="absolute top-3 right-10">
+                <SparklesIcon className="w-5 h-5 text-violet-400" />
+              </motion.div>
+              <motion.div animate={{ y: [0, 4, 0], opacity: [0.3, 0.6, 0.3] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 1 }} className="absolute bottom-4 right-4">
+                <StarIcon className="w-3 h-3 text-violet-300" />
+              </motion.div>
+              <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 rounded-full bg-violet-500 opacity-5 blur-2xl group-hover:opacity-10 transition-opacity duration-300"></div>
+              <div className="relative z-10 w-14 h-14 bg-violet-50 rounded-2xl flex items-center justify-center shrink-0 group-hover:bg-violet-600 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-inner">
+                <VideoCameraIcon className="w-7 h-7 text-violet-600 group-hover:text-white transition-colors duration-300" />
               </div>
-              <div className="flex items-center gap-3">
-                <span className={`text-xs px-2 py-1 rounded-full ${STATUS_COLORS[s.status] || "bg-slate-100"}`}>
-                  {STATUS_LABELS[s.status] || s.status}
-                </span>
-                {s.status === "ready" && (
-                  <Link
-                    to={`/interview/${s.id}`}
-                    className="text-sm text-primary-600 hover:underline"
+              <div className="relative z-10">
+                <p className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-0.5 group-hover:text-violet-600 transition-colors">Tổng số phỏng vấn</p>
+                <h4 className="text-3xl font-black text-slate-800">{sessions.length}</h4>
+              </div>
+            </div>
+            <div className="bg-gradient-to-br from-white to-slate-50/80 backdrop-blur-xl rounded-2xl p-5 border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex items-center gap-4 hover:border-emerald-200 hover:shadow-[0_8px_30px_rgba(16,185,129,0.08)] transition-all duration-300 group relative overflow-hidden">
+              <motion.div animate={{ y: [0, -6, 0], opacity: [0.4, 0.8, 0.4] }} transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.5 }} className="absolute top-3 right-10">
+                <SparklesIcon className="w-5 h-5 text-emerald-400" />
+              </motion.div>
+              <motion.div animate={{ y: [0, 4, 0], opacity: [0.3, 0.6, 0.3] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 1.5 }} className="absolute bottom-4 right-4">
+                <StarIcon className="w-3 h-3 text-emerald-300" />
+              </motion.div>
+              <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 rounded-full bg-emerald-500 opacity-5 blur-2xl group-hover:opacity-10 transition-opacity duration-300"></div>
+              <div className="relative z-10 w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center shrink-0 group-hover:bg-emerald-600 group-hover:scale-110 group-hover:-rotate-3 transition-all duration-300 shadow-inner">
+                <CheckCircleIcon className="w-7 h-7 text-emerald-600 group-hover:text-white transition-colors duration-300" />
+              </div>
+              <div className="relative z-10">
+                <p className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-0.5 group-hover:text-emerald-600 transition-colors">Phỏng vấn đã hoàn thành</p>
+                <h4 className="text-3xl font-black text-slate-800">{completedCount}</h4>
+              </div>
+            </div>
+          </motion.div>
+
+          {sessions.length === 0 ? (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              transition={{ delay: 0.2 }}
+              className="bg-white rounded-3xl p-10 text-center shadow-[0_10px_40px_rgba(0,0,0,0.03)] border border-slate-100 relative overflow-hidden group"
+            >
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 to-indigo-500"></div>
+              <div className="absolute -inset-24 bg-gradient-to-tr from-violet-100/30 to-emerald-100/30 opacity-0 group-hover:opacity-100 transition-opacity duration-700 rounded-full blur-3xl z-0"></div>
+              <motion.div 
+                animate={{ y: [0, -10, 0] }}
+                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                className="w-20 h-20 bg-violet-50 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner relative z-10"
+              >
+                <DocumentTextIcon className="w-10 h-10 text-violet-400" />
+              </motion.div>
+              <h3 className="text-2xl font-extrabold text-slate-800 mb-3">Chưa có phiên phỏng vấn nào</h3>
+              <p className="text-slate-500 text-sm font-medium mb-8 max-w-md mx-auto">
+                Bạn chưa thực hiện bài phỏng vấn nào. Hãy tạo một phiên mới để trải nghiệm phỏng vấn thực tế với AI.
+              </p>
+              <Link
+                to="/dashboard"
+                className="inline-flex items-center gap-2 text-white text-sm font-bold bg-gradient-to-r from-violet-600 to-indigo-600 px-6 py-3 rounded-xl hover:shadow-[0_10px_25px_rgba(124,58,237,0.4)] hover:-translate-y-1 transition-all shadow-sm"
+              >
+                <PlusIcon className="w-5 h-5 stroke-[2.5]" />
+                Tạo buổi phỏng vấn đầu tiên
+              </Link>
+            </motion.div>
+          ) : (
+            <div className="bg-white/60 backdrop-blur-xl rounded-3xl border border-slate-200/60 shadow-[0_10px_40px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col relative z-10">
+              <div className="p-5 md:p-6 border-b border-slate-200/60 bg-white/40">
+                <div className="flex flex-col sm:flex-row gap-3 w-full">
+                  <div className="relative w-full flex-1 group">
+                    <div className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 bg-violet-100 text-violet-600 rounded-lg flex items-center justify-center transition-all duration-300 group-hover:bg-violet-200 group-focus-within:bg-violet-600 group-focus-within:text-white group-focus-within:scale-105 shadow-sm z-10">
+                      <MagnifyingGlassIcon className="w-5 h-5 stroke-[2.5]" />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Tìm kiếm phiên phỏng vấn..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-14 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-500/15 bg-white/80 backdrop-blur-xl transition-all shadow-sm text-sm font-medium hover:border-violet-300"
+                    />
+                  </div>
+                  <div className="flex bg-slate-100/80 backdrop-blur-xl p-1 rounded-xl border border-slate-200/60 shrink-0 h-[48px] items-center">
+                    <button
+                      onClick={() => setStatusFilter("all")}
+                      className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all flex items-center gap-1.5 ${
+                        statusFilter === "all" ? "bg-white text-violet-700 shadow-[0_2px_8px_rgba(0,0,0,0.05)]" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
+                      }`}
+                    >
+                      Tất cả
+                    </button>
+                    <button
+                      onClick={() => setStatusFilter("processing")}
+                      className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all flex items-center gap-1.5 ${
+                        statusFilter === "processing" ? "bg-white text-amber-700 shadow-[0_2px_8px_rgba(0,0,0,0.05)]" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
+                      }`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${statusFilter === "processing" ? "bg-amber-500 animate-pulse" : "bg-slate-400"}`}></span>
+                      Đang xử lý
+                    </button>
+                    <button
+                      onClick={() => setStatusFilter("completed")}
+                      className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all flex items-center gap-1.5 ${
+                        statusFilter === "completed" ? "bg-white text-emerald-700 shadow-[0_2px_8px_rgba(0,0,0,0.05)]" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
+                      }`}
+                    >
+                      <CheckCircleIcon className="w-4 h-4" />
+                      Hoàn thành
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-5 md:p-6 bg-slate-50/30">
+                {filteredSessions.length === 0 ? (
+                  <div className="bg-white rounded-2xl p-10 text-center border border-slate-100 shadow-sm">
+                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <DocumentTextIcon className="w-8 h-8 text-slate-400" />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-700 mb-1">Không tìm thấy dữ liệu</h3>
+                    <p className="text-slate-500 text-sm font-medium">Thử thay đổi từ khóa hoặc bộ lọc để xem các kết quả khác.</p>
+                  </div>
+                ) : (
+                  <motion.div 
+                    variants={containerVariants}
+                    initial="hidden"
+                    animate="show"
+                    className="grid gap-4 max-h-[600px] overflow-y-auto pr-2 pb-2 -mr-2" 
+                    style={{ scrollbarWidth: "thin", scrollbarColor: "#cbd5e1 transparent" }}
                   >
-                    Bắt đầu
-                  </Link>
-                )}
-                {s.status === "active" && (
-                  <Link
-                    to={`/interview/${s.id}`}
-                    className="text-sm text-primary-600 hover:underline"
-                  >
-                    Tiếp tục
-                  </Link>
-                )}
-                {(s.status === "completed" || s.status === "evaluating") && (
-                  <Link
-                    to={`/report/${s.id}`}
-                    className="text-sm text-primary-600 hover:underline"
-                  >
-                    Xem báo cáo
-                  </Link>
+                    {filteredSessions.map((s) => {
+                      const isActionable = ["ready", "active", "completed", "evaluating"].includes(s.status);
+                      const isReport = ["completed", "evaluating"].includes(s.status);
+                      
+                      return (
+                        <motion.div
+                          variants={itemVariants}
+                          whileHover={{ y: -2, scale: 1.005 }}
+                          key={s.id}
+                          onClick={() => {
+                            if (s.status === "ready" || s.status === "active") {
+                              navigate(`/interview/${s.id}`);
+                            } else if (s.status === "completed" || s.status === "evaluating") {
+                              navigate(`/report/${s.id}`);
+                            }
+                          }}
+                          className={`relative bg-white rounded-2xl py-5 pr-5 pl-7 border border-slate-200 shadow-[0_2px_10px_rgba(0,0,0,0.02)] hover:shadow-[0_15px_30px_rgba(124,58,237,0.08)] hover:border-violet-200 transition-all duration-300 group flex flex-col md:flex-row md:items-center justify-between gap-4 overflow-hidden ${
+                            isActionable ? "cursor-pointer" : ""
+                          }`}
+                        >
+                          {/* Status Color Strip */}
+                          <div className={`absolute top-0 left-0 bottom-0 w-1.5 transition-colors ${
+                            s.status === "completed" ? "bg-emerald-500" :
+                            s.status === "evaluating" ? "bg-purple-500" :
+                            s.status === "active" ? "bg-amber-500" :
+                            s.status === "ready" ? "bg-blue-500" :
+                            s.status === "parsing" ? "bg-orange-500" :
+                            "bg-slate-300"
+                          }`} />
+
+                          {/* Background Hover Effect */}
+                          <div className="absolute inset-0 bg-gradient-to-r from-violet-50/30 to-indigo-50/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10" />
+
+                          <div className="flex-1 relative z-10">
+                            <div className="flex items-center gap-3 mb-2.5">
+                              <StatusBadge status={s.status} />
+                              <span className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
+                                <CalendarIcon className="w-3.5 h-3.5" />
+                                {new Date(s.created_at || Date.now()).toLocaleDateString("vi-VN", {
+                                  day: "2-digit",
+                                  month: "2-digit",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+                            
+                            <h3 className="text-lg font-extrabold text-slate-800 mb-2.5 group-hover:text-violet-700 transition-colors">
+                              {s.title || s.position_applied || "Vị trí không xác định"}
+                            </h3>
+                            
+                            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
+                              {s.industry && (
+                                <span className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 shadow-sm">
+                                  <BriefcaseIcon className="w-3.5 h-3.5 text-slate-400" />
+                                  {s.industry}
+                                </span>
+                              )}
+                              <span className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 shadow-sm">
+                                <LanguageIcon className="w-3.5 h-3.5 text-slate-400" />
+                                {s.language === "vi" ? "Tiếng Việt" : "English"}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 flex items-center gap-3 mt-2 md:mt-0 pt-3 md:pt-0 border-t md:border-t-0 border-slate-100 relative z-10">
+                            {isActionable ? (
+                              <div className="flex items-center gap-1.5 text-xs font-bold text-violet-600 bg-violet-50 px-3.5 py-2 rounded-lg group-hover:bg-gradient-to-r group-hover:from-violet-600 group-hover:to-indigo-600 group-hover:text-white transition-all shadow-sm hover:shadow-md">
+                                {isReport ? (
+                                  <>
+                                    Xem kết quả <ChartPieIcon className="w-3.5 h-3.5" />
+                                  </>
+                                ) : (
+                                  <>
+                                    Bắt đầu <PlayIcon className="w-3.5 h-3.5" />
+                                  </>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="w-5 h-5 shrink-0" />
+                            )}
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </motion.div>
                 )}
               </div>
             </div>
-          ))}
+          )}
         </div>
-      )}
+
+        <motion.div 
+          initial={{ opacity: 0, x: 20 }} 
+          animate={{ opacity: 1, x: 0 }} 
+          transition={{ duration: 0.6, delay: 0.2 }} 
+          className="lg:col-span-1 space-y-6"
+        >
+          {/* CTA Khung Tím - Cột phải */}
+          <div className="bg-gradient-to-br from-violet-700 to-indigo-900 rounded-3xl p-6 text-white shadow-[0_15px_30px_rgba(124,58,237,0.2)] relative overflow-hidden">
+            <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 rounded-full bg-white opacity-10"></div>
+            <h2 className="text-xl font-bold mb-2 relative z-10">Giả lập phỏng vấn thực tế</h2>
+            <p className="text-violet-100 text-sm mb-6 font-medium leading-relaxed relative z-10">
+              Trải nghiệm môi trường phỏng vấn chuyên nghiệp với AI. Tùy chỉnh câu hỏi theo CV và nhận đánh giá chi tiết ngay sau khi hoàn thành.
+            </p>
+            <Link
+              to="/dashboard"
+              className="inline-flex items-center justify-center w-full gap-2 bg-white text-violet-700 px-5 py-3 rounded-xl font-bold hover:bg-violet-50 transition-colors shadow-sm relative z-10"
+            >
+              <PlusIcon className="w-5 h-5 stroke-[2.5]" />
+              Tạo phiên mới
+            </Link>
+          </div>
+
+          <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 border border-slate-100 shadow-[0_10px_30px_rgba(0,0,0,0.04)]">
+            <h2 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-2">
+              <ChartBarIcon className="w-6 h-6 text-violet-500" />
+              4 tiêu chí <span className="text-violet-600">đánh giá</span>
+            </h2>
+            
+            <div className="relative h-[180px]">
+              <AnimatePresence mode="wait">
+                {(() => {
+                  const item = EVALUATION_CRITERIA[activeCriterion];
+                  const Icon = item.Icon;
+                  return (
+                    <motion.div 
+                      key={activeCriterion}
+                      initial={{ opacity: 0, y: 20 }} 
+                      animate={{ opacity: 1, y: 0 }} 
+                      exit={{ opacity: 0, y: -20 }}
+                      transition={{ duration: 0.3 }}
+                      className="absolute inset-0 bg-gradient-to-br from-white to-slate-50 rounded-2xl p-6 border border-slate-100 shadow-[0_4px_15px_rgba(0,0,0,0.02)] flex flex-col justify-center overflow-hidden"
+                    >
+                      <div className="absolute top-2 right-4 text-6xl font-black text-slate-100/60 select-none z-0">
+                        {item.num}
+                      </div>
+                      <div className="relative z-10">
+                        <div className="flex items-start gap-3 mb-3">
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-inner ${item.bg}`}>
+                              <Icon className={`w-6 h-6 ${item.color}`} strokeWidth={2.5} />
+                          </div>
+                          <div>
+                              <h3 className="font-extrabold text-slate-800 text-base">{item.title}</h3>
+                              <div className={`px-2 py-0.5 mt-1 rounded-full text-[10px] font-bold uppercase tracking-wider inline-block ${item.bg} ${item.color}`}>
+                                  {item.label}
+                              </div>
+                          </div>
+                        </div>
+                        <p className="text-slate-600 text-sm font-medium leading-relaxed">
+                          {item.desc}
+                        </p>
+                      </div>
+                    </motion.div>
+                  );
+                })()}
+              </AnimatePresence>
+            </div>
+
+            <div className="flex justify-center gap-3 mt-6">
+              {EVALUATION_CRITERIA.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setActiveCriterion(idx)}
+                  className={`h-2.5 rounded-full transition-all duration-300 shadow-inner ${
+                    idx === activeCriterion ? "w-8 bg-violet-600" : "w-2.5 bg-slate-200 hover:bg-violet-400"
+                  }`}
+                  aria-label={`Xem tiêu chí ${idx + 1}`}
+                />
+              ))}
+            </div>
+          </div>
+        </motion.div>
+      </div>
     </div>
   );
 }
