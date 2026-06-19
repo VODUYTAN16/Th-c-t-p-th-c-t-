@@ -2,13 +2,8 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   SparklesIcon,
-  MicrophoneIcon,
-  ChartBarIcon,
-  DocumentTextIcon,
   ArrowRightIcon,
   ChevronDownIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   CloudArrowUpIcon,
   AdjustmentsHorizontalIcon,
   ChatBubbleLeftRightIcon,
@@ -83,8 +78,6 @@ const SOLUTIONS = [
 export default function LandingPage() {
   const { user } = useAuth();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [slides, setSlides] = useState<string[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [activeSolution, setActiveSolution] = useState(0);
   const [progress, setProgress] = useState(0);
 
@@ -101,39 +94,6 @@ export default function LandingPage() {
     }, 100);
     return () => clearInterval(interval);
   }, [activeSolution]);
-
-  useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/slides`)
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data) && data.length > 0) {
-          setSlides(data);
-        } else {
-          setSlides(["/slide/1.png", "/slide/2.jpg"]);
-        }
-      })
-      .catch(() => {
-        setSlides(["/slide/1.png", "/slide/2.jpg"]);
-      });
-  }, []);
-
-  useEffect(() => {
-    if (slides.length <= 1) return;
-    const timer = setInterval(() => {
-      setCurrentIndex(prev => (prev + 1) % slides.length);
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [slides]);
-
-  const handlePrev = () => {
-    if (slides.length <= 1) return;
-    setCurrentIndex(prev => (prev - 1 + slides.length) % slides.length);
-  };
-
-  const handleNext = () => {
-    if (slides.length <= 1) return;
-    setCurrentIndex(prev => (prev + 1) % slides.length);
-  };
 
   return (
     <>
