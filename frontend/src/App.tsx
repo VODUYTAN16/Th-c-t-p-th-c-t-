@@ -10,37 +10,28 @@ import ReportPage from "./pages/ReportPage";
 import UploadPage from "./pages/UploadPage";
 import CVSuggestionPage from "./pages/CVSuggestionPage";
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function ProtectedPage({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="text-center py-16">Đang tải...</div>;
   if (!user) return <Navigate to="/login" replace />;
-  return <>{children}</>;
+  return <Layout>{children}</Layout>;
 }
 
 export default function App() {
   return (
     <Routes>
-      {/* Trang chủ công khai */}
       <Route path="/" element={<LandingPage />} />
-
-      {/* Auth */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
 
-      {/* Các trang yêu cầu đăng nhập */}
+      <Route path="/dashboard" element={<ProtectedPage><UploadPage /></ProtectedPage>} />
+      <Route path="/history" element={<ProtectedPage><HistoryPage /></ProtectedPage>} />
+      <Route path="/interview/:sessionId" element={<ProtectedPage><InterviewPage /></ProtectedPage>} />
+      <Route path="/report/:sessionId" element={<ProtectedPage><ReportPage /></ProtectedPage>} />
       <Route
-        element={
-          <ProtectedRoute>
-            <Layout />
-          </ProtectedRoute>
-        }
-      >
-        <Route path="/dashboard" element={<UploadPage />} />
-        <Route path="/interview/:sessionId" element={<InterviewPage />} />
-        <Route path="/report/:sessionId" element={<ReportPage />} />
-        <Route path="/report/:sessionId/cv-suggestions" element={<CVSuggestionPage />} />
-        <Route path="/history" element={<HistoryPage />} />
-      </Route>
+        path="/report/:sessionId/cv-suggestions"
+        element={<ProtectedPage><CVSuggestionPage /></ProtectedPage>}
+      />
     </Routes>
   );
 }

@@ -13,29 +13,35 @@ export default function AppHeader() {
     navigate("/login");
   };
 
-  const NavItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => {
-    const isActive = location.pathname === to || (to !== '/' && location.pathname.startsWith(to));
+  const NavItem = ({ to, icon: Icon, label }: { to: string, icon: React.ComponentType<{ style?: React.CSSProperties }>, label: string }) => {
+    const isActive = location.pathname === to || (to !== "/" && location.pathname.startsWith(to));
     return (
-      <Link to={to} style={{
-        display: "flex", alignItems: "center", gap: 8,
-        padding: "6px 14px 6px 16px",
-        borderRadius: 9999,
-        background: isActive ? "#f3f0ff" : "#f8fafc",
-        color: isActive ? "#7c3aed" : "#475569",
-        fontWeight: isActive ? 600 : 500,
-        fontSize: 14,
-        textDecoration: "none",
-        transition: "background 0.2s, color 0.2s"
-      }}>
+      <button
+        type="button"
+        onClick={() => navigate(to)}
+        style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "6px 14px 6px 16px",
+          borderRadius: 9999,
+          border: "none",
+          cursor: "pointer",
+          background: isActive ? "#f3f0ff" : "#f8fafc",
+          color: isActive ? "#7c3aed" : "#475569",
+          fontWeight: isActive ? 600 : 500,
+          fontSize: 14,
+          textDecoration: "none",
+          transition: "background 0.2s, color 0.2s",
+        }}
+      >
         <span>{label}</span>
         <Icon style={{ width: 16, height: 16, strokeWidth: 2.5, color: isActive ? "#7c3aed" : "#64748b" }} />
-      </Link>
+      </button>
     );
   };
 
   return (
     <header style={{
-      position: "sticky", top: 0, zIndex: 50,
+      position: "sticky", top: 0, zIndex: 100,
       background: "#ffffff",
       borderBottom: "1px solid #f1f5f9",
       padding: "12px 0",
@@ -60,7 +66,7 @@ export default function AppHeader() {
         </Link>
 
         {/* Center Nav */}
-        <nav style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <nav style={{ display: "flex", alignItems: "center", gap: 8, position: "relative", zIndex: 101 }}>
           <NavItem to="/" icon={HomeIcon} label="Trang chủ" />
           {user && (
             <>
