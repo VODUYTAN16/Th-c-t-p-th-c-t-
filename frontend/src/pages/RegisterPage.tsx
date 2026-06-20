@@ -12,17 +12,17 @@ import {
 
 const REGISTER_SLIDES = [
   {
-    image: "/login_slide_1_clean.png",
+    image: "/login_slide_1_simple.png",
     title: "Nâng tầm kỹ năng phỏng vấn",
     desc: "Nhận 10-15 câu hỏi cá nhân hóa từ CV của bạn, luyện nói tự nhiên và nhận đánh giá chi tiết theo chuẩn quốc tế.",
   },
   {
-    image: "/login_slide_2_clean.png",
+    image: "/login_slide_2_simple.png",
     title: "Phân tích CV & JD tự động",
     desc: "AI tự động bóc tách kỹ năng, kinh nghiệm và so khớp với mô tả công việc của vị trí bạn ứng tuyển để tìm điểm thiếu hụt.",
   },
   {
-    image: "/login_slide_3_clean.png",
+    image: "/login_slide_3_simple.png",
     title: "Đánh giá & Gợi ý cải thiện",
     desc: "Chấm điểm chi tiết 4 tiêu chí chuẩn quốc tế kèm câu trả lời mẫu hoàn hảo và đề xuất nâng cấp CV phù hợp.",
   },
@@ -80,26 +80,26 @@ export default function RegisterPage() {
 
       {/* Main Content */}
       <div className="flex-1 overflow-hidden flex items-center justify-center p-6 md:p-8 relative z-10">
-        
+
         {/* Background Grid & Decorative Hologram blobs */}
         <div className="absolute inset-0 bg-grid pointer-events-none" />
         <div className="absolute top-[-10%] left-[-10%] w-[60vw] h-[60vw] bg-gradient-to-tr from-violet-400/20 via-indigo-300/20 to-fuchsia-300/20 rounded-full blur-[140px] pointer-events-none" />
         <div className="absolute bottom-[-15%] right-[-10%] w-[70vw] h-[70vw] bg-gradient-to-br from-indigo-400/20 via-pink-300/15 to-cyan-300/20 rounded-full blur-[160px] pointer-events-none" />
         <div className="absolute top-[20%] left-[20%] w-[50vw] h-[40vw] bg-gradient-to-r from-fuchsia-300/10 via-purple-400/10 to-cyan-300/10 rounded-full blur-[180px] pointer-events-none" />
         <div className="absolute top-[40%] right-[5%] w-[45vw] h-[45vw] bg-gradient-to-tr from-violet-200/20 to-fuchsia-200/20 rounded-full blur-[120px] pointer-events-none" />
-        
+
         {/* Unified Premium Card (Combines left visual & right form inside a single white grid panel) */}
         <div className="w-full max-w-5xl bg-white/95 backdrop-blur-md border border-slate-200/70 rounded-3xl overflow-hidden shadow-[0_30px_70px_-10px_rgba(124,58,237,0.12),_0_0_50px_rgba(124,58,237,0.02)] grid md:grid-cols-12 min-h-[500px] md:min-h-[550px] relative z-10">
-          
+
           {/* Left Column: Carousel panel inside unified card (Solid white background to blend with image white background) */}
           <div className="hidden md:flex md:col-span-6 bg-white p-6 md:p-8 flex-col justify-between border-r border-slate-100 relative overflow-hidden">
             {/* Soft decorative background circles */}
             <div className="absolute -top-16 -left-16 w-48 h-48 rounded-full bg-violet-50/50 blur-3xl pointer-events-none" />
             <div className="absolute -bottom-20 -right-16 w-48 h-48 rounded-full bg-indigo-50/40 blur-3xl pointer-events-none" />
 
-            {/* Visual Illustration Carousel (Enlarged to h-[260px] and max-w-[340px]) */}
+            {/* Visual Illustration Carousel (Enlarged to h-[340px] and max-w-[400px]) */}
             <div className="relative my-1 flex flex-col justify-center">
-              <div className="relative h-[260px] w-full flex items-center justify-center overflow-hidden">
+              <div className="relative h-[340px] w-full flex items-center justify-center overflow-hidden">
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={activeSlide}
@@ -112,7 +112,7 @@ export default function RegisterPage() {
                     <img
                       src={REGISTER_SLIDES[activeSlide].image}
                       alt={REGISTER_SLIDES[activeSlide].title}
-                      className="w-full max-w-[340px] h-full object-contain"
+                      className="w-full max-w-[400px] h-full object-contain"
                     />
                   </motion.div>
                 </AnimatePresence>
@@ -127,14 +127,13 @@ export default function RegisterPage() {
                   <button
                     key={idx}
                     onClick={() => setActiveSlide(idx)}
-                    className={`h-2 rounded-full transition-all duration-300 ${
-                      idx === activeSlide ? "w-8 bg-violet-600" : "w-2 bg-slate-200 hover:bg-violet-400"
-                    }`}
+                    className={`h-2 rounded-full transition-all duration-300 ${idx === activeSlide ? "w-8 bg-violet-600" : "w-2 bg-slate-200 hover:bg-violet-400"
+                      }`}
                     aria-label={`Xem slide ${idx + 1}`}
                   />
                 ))}
               </div>
-              
+
               <div className="relative overflow-hidden">
                 <AnimatePresence mode="wait">
                   <motion.div
@@ -159,9 +158,9 @@ export default function RegisterPage() {
           {/* Right Column: Form Area inside unified card */}
           <div className="col-span-12 md:col-span-6 p-6 md:p-8 flex flex-col justify-center bg-white relative">
             <div className="absolute top-0 right-0 -mr-16 -mt-16 w-48 h-48 rounded-full bg-violet-100/30 blur-2xl pointer-events-none" />
-            
+
             <div className="w-full max-w-md mx-auto">
-              
+
               {/* Title & Sub */}
               <h2 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tight mb-2">
                 Tạo tài khoản mới
@@ -172,7 +171,7 @@ export default function RegisterPage() {
 
               {/* Form */}
               <form onSubmit={handleSubmit} className="space-y-3.5">
-                
+
                 {/* Error Banner */}
                 {error && (
                   <div className="bg-red-50 border border-red-100 text-red-700 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2.5 animate-fadeIn">
@@ -271,7 +270,7 @@ export default function RegisterPage() {
               </form>
             </div>
           </div>
-          
+
         </div>
       </div>
     </div>
