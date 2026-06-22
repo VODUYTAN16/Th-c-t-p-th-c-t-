@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { SparklesIcon, ArrowLeftIcon, ExclamationTriangleIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+import { SparklesIcon, ArrowLeftIcon, ExclamationTriangleIcon, DocumentTextIcon, ClipboardDocumentIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../contexts/AuthContext';
 import { apiFetch } from '../lib/api';
 
@@ -14,6 +14,16 @@ export default function CVSuggestionPage() {
   const [report, setReport] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  const handleCopy = (text: string, index: number) => {
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        setCopiedIndex(index);
+        setTimeout(() => setCopiedIndex(null), 2000);
+      })
+      .catch((err) => console.error('Không thể sao chép: ', err));
+  };
 
   useEffect(() => {
     if (!sessionId || !accessToken) return;
@@ -83,9 +93,27 @@ export default function CVSuggestionPage() {
                   <div className="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center shrink-0 relative z-10">
                     <SparklesIcon className="w-7 h-7 text-emerald-600" />
                   </div>
-                  <div className="relative z-10 pt-1">
-                    <div className="inline-flex items-center px-3 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-wider mb-3">
-                      {s.section}
+                  <div className="relative z-10 pt-1 flex-1">
+                    <div className="flex items-center justify-between gap-4 mb-3">
+                      <div className="inline-flex items-center px-3 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-wider">
+                        {s.section}
+                      </div>
+                      <button
+                        onClick={() => handleCopy(s.suggestion, i)}
+                        className="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-emerald-600 bg-slate-50 hover:bg-emerald-50 px-2.5 py-1 rounded-lg border border-slate-100 hover:border-emerald-100 transition-all shadow-sm shrink-0"
+                      >
+                        {copiedIndex === i ? (
+                          <>
+                            <CheckIcon className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
+                            <span className="text-emerald-700">Đã chép</span>
+                          </>
+                        ) : (
+                          <>
+                            <ClipboardDocumentIcon className="w-3.5 h-3.5" />
+                            <span>Sao chép</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                     <p className="text-slate-700 text-base font-medium leading-relaxed">
                       {s.suggestion}

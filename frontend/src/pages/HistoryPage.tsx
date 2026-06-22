@@ -281,7 +281,7 @@ export default function HistoryPage() {
                     variants={containerVariants}
                     initial="hidden"
                     animate="show"
-                    className="grid gap-4 max-h-[600px] overflow-y-auto pr-2 pb-2 -mr-2" 
+                    className="grid gap-4 md:max-h-[600px] md:overflow-y-auto pr-2 pb-2 -mr-2" 
                     style={{ scrollbarWidth: "thin", scrollbarColor: "#cbd5e1 transparent" }}
                   >
                     {filteredSessions.map((s) => {

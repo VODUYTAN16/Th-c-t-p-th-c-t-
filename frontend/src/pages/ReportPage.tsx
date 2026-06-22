@@ -12,7 +12,6 @@ import {
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import {
   ArrowLeftIcon,
-  ArrowDownTrayIcon,
   DocumentTextIcon,
   SparklesIcon,
   ChartBarIcon,
@@ -63,6 +62,50 @@ export default function ReportPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedQuestionIndex, setSelectedQuestionIndex] = useState(0);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [outerRadius, setOuterRadius] = useState('70%');
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 480) {
+        setOuterRadius('50%');
+      } else if (window.innerWidth < 768) {
+        setOuterRadius('55%');
+      } else {
+        setOuterRadius('70%');
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleDownloadPdf = async () => {
+    if (downloadingPdf || !sessionId || !accessToken) return;
+    setDownloadingPdf(true);
+    try {
+      if (report?.pdf_url) {
+        window.open(report.pdf_url, '_blank');
+      } else {
+        const response = await fetch(`${API_URL}/sessions/${sessionId}/report/pdf`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!response.ok) throw new Error('Không thể xuất báo cáo PDF');
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `report-${sessionId}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : 'Đã xảy ra lỗi khi tải PDF');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
 
   useEffect(() => {
     if (!sessionId || !accessToken) return;
@@ -184,39 +227,23 @@ export default function ReportPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {report?.pdf_url && (
-            <a
-              href={report?.pdf_url}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-2 bg-white text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl font-bold hover:bg-slate-50 hover:text-violet-600 transition-colors shadow-sm text-sm"
-            >
-              <ArrowDownTrayIcon className="w-4 h-4 stroke-[2.5]" />
-              Tải PDF
-            </a>
-          )}
-          <a
-            href={`${API_URL}/sessions/${sessionId}/report/pdf`}
-            onClick={(e) => {
-              e.preventDefault();
-              fetch(`${API_URL}/sessions/${sessionId}/report/pdf`, {
-                headers: { Authorization: `Bearer ${accessToken}` },
-              })
-                .then((r) => r.blob())
-                .then((blob) => {
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `report-${sessionId}.pdf`;
-                  a.click();
-                });
-            }}
-        className="flex items-center gap-2 text-white bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-2.5 rounded-xl font-bold hover:shadow-[0_10px_25px_rgba(124,58,237,0.4)] hover:-translate-y-1 transition-all shadow-sm text-sm relative overflow-hidden group"
+          <button
+            onClick={handleDownloadPdf}
+            disabled={downloadingPdf}
+            className="flex items-center gap-2 text-white bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-2.5 rounded-xl font-bold hover:shadow-[0_10px_25px_rgba(124,58,237,0.4)] hover:-translate-y-1 active:translate-y-0 disabled:opacity-50 transition-all shadow-sm text-sm relative overflow-hidden group"
           >
-        <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out" />
-        <DocumentTextIcon className="w-4 h-4 stroke-[2.5] relative z-10" />
-        <span className="relative z-10">Tải PDF (API)</span>
-          </a>
+            {downloadingPdf ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Đang tải PDF...</span>
+              </>
+            ) : (
+              <>
+                <DocumentTextIcon className="w-4 h-4 stroke-[2.5]" />
+                <span>Tải báo cáo PDF</span>
+              </>
+            )}
+          </button>
         </div>
       </motion.div>
 
@@ -341,7 +368,7 @@ export default function ReportPage() {
                 </h3>
                 <div className="flex-1 min-h-[300px] w-full -ml-2">
                   <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart cx="50%" cy="50%" outerRadius="75%" data={chartData}>
+                    <RadarChart cx="50%" cy="50%" outerRadius={outerRadius} data={chartData}>
                       <PolarGrid stroke="#e2e8f0" />
                       <PolarAngleAxis dataKey="subject" tick={{ fill: '#475569', fontSize: 12, fontWeight: 600 }} />
                       <PolarRadiusAxis angle={30} domain={[0, 10]} tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} />
