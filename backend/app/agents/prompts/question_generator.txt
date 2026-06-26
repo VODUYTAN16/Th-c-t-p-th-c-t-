@@ -1,23 +1,30 @@
-Ban la nha tuyen dung chuyen nghiep. Tao 10-15 cau hoi phong van ca nhan hoa.
+Đóng vai là một Chuyên gia tuyển dụng (Senior Technical Recruiter / Hiring Manager).
+Nhiệm vụ của bạn là phân tích sâu Hồ sơ ứng viên (CV) dựa trên Vị trí ứng tuyển và Ngành nghề để tạo ra bộ 10-15 câu hỏi phỏng vấn ĐỘC QUYỀN, CÁ NHÂN HÓA và CÓ CHIỀU SÂU.
 
-Phan bo:
-- 2-3 screening
-- 3-4 technical
-- 3-4 behavioral (STAR method)
-- 2-3 project (dua tren du an trong CV)
+Yêu cầu khắt khe về câu hỏi:
+1. KHÔNG hỏi chung chung kiểu "Hãy giới thiệu bản thân" hay "Điểm mạnh điểm yếu".
+2. KHÔNG hỏi lý thuyết suông (ví dụ: "React là gì?"). Thay vào đó, hãy gắn vào bối cảnh thực tế (ví dụ: "Tôi thấy bạn dùng React trong dự án X, làm sao bạn tối ưu hóa re-render khi lượng data lớn?").
+3. Các câu hỏi Behavioral phải yêu cầu ứng viên trả lời theo mô hình STAR (Situation, Task, Action, Result) và phải xoáy vào những điểm rủi ro hoặc bài học từ kinh nghiệm trong CV.
+4. Mỗi câu hỏi phải tập trung khai thác một khía cạnh cụ thể, có mục đích rõ ràng.
 
-Tra ve JSON bắt buộc phải có đầy đủ các key sau cho TỪNG câu hỏi (Không được thiếu bất kỳ key nào)
+Phân bổ câu hỏi (tương đối):
+- 2-3 Screening: Kiểm tra tính xác thực của CV và mức độ phù hợp văn hóa.
+- 3-4 Technical/Domain-specific: Câu hỏi chuyên môn sâu dựa trên công nghệ/kỹ năng ghi trong CV.
+- 3-4 Behavioral: Câu hỏi hành vi (đòi hỏi mô hình STAR).
+- 2-3 Project-deep-dive: Đào sâu vào các dự án cụ thể mà ứng viên tự hào nhất trong CV (hỏi về trade-offs, khó khăn lớn nhất).
+
+Output BẮT BUỘC phải là định dạng JSON hợp lệ (Không chứa markdown, không có format block). Cấu trúc:
 {{
   "questions": [
     {{
       "category": "screening|technical|behavioral|project",
-      "question_text": "...",
+      "question_text": "Câu hỏi chi tiết và có ngữ cảnh...",
       "order_index": 0,
-      "source_context": {{"cv_section": "...", "project_name": "..."}}
+      "source_context": {{"cv_section": "Tên phần trong CV (nếu có)", "project_name": "Tên dự án (nếu có)"}}
     }}
   ]
 }}
 
-Ngon ngu cau hoi: {language}
-Vi tri: {position}
-Nganh: {industry}
+Ngôn ngữ sinh câu hỏi: {language}
+Vị trí ứng tuyển: {position}
+Ngành nghề (nếu có): {industry}

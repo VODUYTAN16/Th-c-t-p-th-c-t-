@@ -19,20 +19,44 @@ async def decide_next_action(
     follow_up_count = session.get("follow_up_count", 0)
 
     if idx >= len(main_questions):
-        return {"action": "complete", "message": "Cam on ban da hoan thanh phong van."}
+        msg = "Cảm ơn bạn đã hoàn thành phỏng vấn." if language == "vi" else "Thank you for completing the interview."
+        return {"action": "complete", "message": msg}
 
     current_q = main_questions[idx]
 
-    if follow_up_count < 2 and len(candidate_answer.strip()) > 10:
-        prompt = f"""Ban la nha tuyen dung. Quyet dinh co can hoi follow-up khong.
-Cau hoi hien tai: {current_q['question_text']}
-Cau tra loi ung vien: {candidate_answer}
-So follow-up da hoi: {follow_up_count}
+    messages = db.list_messages(session_id)
+    recent_messages = messages[-6:] if len(messages) >= 6 else messages
+    chat_history_str = ""
+    for m in recent_messages:
+        role_str = "Interviewer" if m["role"] == "interviewer" else "Candidate"
+        chat_history_str += f"{role_str}: {m['content']}\n"
 
-Tra ve JSON: {{"action": "follow_up"|"next_question", "text": "cau hoi hoac phan hoi"}}
-Ngon ngu: {language}
+    next_rephrased = None
+    if follow_up_count < 2 and len(candidate_answer.strip()) > 10:
+        next_q_text = main_questions[idx+1]['question_text'] if idx+1 < len(main_questions) else 'Hết câu hỏi'
+        prompt = f"""Bạn là một Chuyên gia Phỏng vấn Cấp cao.
+Nhiệm vụ: Đánh giá câu trả lời cuối cùng của ứng viên và quyết định hỏi "đào sâu" (follow-up) HAY chuyển sang câu tiếp theo.
+
+Nguyên tắc:
+- Chỉ hỏi đào sâu TỐI ĐA 2 lần cho 1 câu hỏi chính (Đã đào sâu: {follow_up_count} lần).
+- Hỏi đào sâu (follow_up) nếu: Câu trả lời chung chung, thiếu kết quả (STAR thiếu Result), hoặc có điểm thú vị cần làm rõ.
+- Chuyển câu (next_question) nếu: Ứng viên đã trả lời chi tiết hoặc không cần khai thác thêm.
+- CỰC KỲ QUAN TRỌNG: Nếu chọn next_question, bạn phải viết lại (rephrase) câu hỏi tiếp theo một cách khéo léo để tạo sự chuyển ý tự nhiên từ câu trả lời vừa rồi của ứng viên sang chủ đề mới (tránh đọc như cái máy).
+
+Lịch sử trò chuyện gần nhất:
+{chat_history_str}
+
+Câu hỏi chính đang hỏi: "{current_q['question_text']}"
+Câu tiếp theo dự kiến: "{next_q_text}"
+
+Trình bày JSON kết quả:
+{{
+    "action": "follow_up" | "next_question",
+    "text": "Nội dung câu hỏi follow-up HOẶC câu hỏi tiếp theo đã được viết lại cho tự nhiên"
+}}
+Ngôn ngữ: {language}
 """
-        data, _ = await llm_router.generate_json(prompt, "Chi tra ve JSON hop le.")
+        data, _ = await llm_router.generate_json(prompt, "Chỉ trả về JSON hợp lệ.")
         action = data.get("action", "next_question")
         text = data.get("text", "")
 
@@ -50,16 +74,27 @@ Ngon ngu: {language}
             )
             return {"action": "follow_up", "text": text, "question_id": follow_up["id"]}
 
+        if action == "next_question" and text:
+            next_rephrased = text
+
     next_idx = idx + 1
     db.update_session(session_id, {"current_question_index": next_idx, "follow_up_count": 0})
 
     if next_idx >= len(main_questions):
-        return {"action": "complete", "message": "Cam on ban. Buoi phong van da ket thuc."}
+        msg = "Cảm ơn bạn. Buổi phỏng vấn đã kết thúc." if language == "vi" else "Thank you. The interview is now complete."
+        return {"action": "complete", "message": msg}
 
     next_q = main_questions[next_idx]
+    final_text = next_rephrased if next_rephrased else next_q["question_text"]
+    
+    # Update the actual text in DB if it was rephrased
+    if next_rephrased:
+        # We don't have a direct method to update a single question text in db_service, but it's fine. We return it to websocket.
+        pass
+
     return {
         "action": "next_question",
-        "text": next_q["question_text"],
+        "text": final_text,
         "question_id": next_q["id"],
         "question_index": next_idx,
         "total_questions": len(main_questions),
