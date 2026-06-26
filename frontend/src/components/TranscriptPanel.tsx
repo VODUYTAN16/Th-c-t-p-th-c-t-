@@ -20,13 +20,12 @@ export default function TranscriptPanel({ messages }: TranscriptPanelProps) {
           className={`flex ${msg.role === "candidate" ? "justify-end" : "justify-start"}`}
         >
           <div
-            className={`max-w-[80%] px-4 py-2 rounded-2xl text-sm ${
-              msg.role === "candidate"
+            className={`max-w-[80%] px-4 py-2 rounded-2xl text-sm ${msg.role === "candidate"
                 ? "bg-primary-100 text-primary-800"
                 : msg.role === "system"
-                ? "bg-slate-100 text-slate-600 italic"
-                : "bg-slate-200 text-slate-800"
-            }`}
+                  ? "bg-slate-100 text-slate-600 italic"
+                  : "bg-slate-200 text-slate-800"
+              }`}
           >
             <span className="text-xs font-medium block mb-1 opacity-60">
               {msg.role === "candidate" ? "Bạn" : msg.role === "system" ? "Hệ thống" : "Nhà tuyển dụng"}
