@@ -69,6 +69,7 @@ async def interview_websocket(websocket: WebSocket, session_id: str):
         return
 
     language = session.get("language", "vi")
+    voice = websocket.query_params.get("voice", "vi-VN-HoaiMyNeural")
 
     try:
         messages = db.list_messages(session_id)
@@ -87,7 +88,7 @@ async def interview_websocket(websocket: WebSocket, session_id: str):
 
             if greeting:
                 _save_message(session_id, "interviewer", "system", greeting)
-                greeting_audio = await synthesize_speech(greeting, language)
+                greeting_audio = await synthesize_speech(greeting, language, voice)
                 await websocket.send_json({
                     "type": "interviewer_speech",
                     "text": greeting,
@@ -96,7 +97,7 @@ async def interview_websocket(websocket: WebSocket, session_id: str):
                 })
 
             _save_message(session_id, "interviewer", "question", question_text, opening["question_id"])
-            q_audio = await synthesize_speech(question_text, language)
+            q_audio = await synthesize_speech(question_text, language, voice)
             await websocket.send_json({
                 "type": "interviewer_speech",
                 "text": question_text,
@@ -125,7 +126,7 @@ async def interview_websocket(websocket: WebSocket, session_id: str):
 
             last_audio_base64 = None
             if messages[-1]["role"] == "interviewer" and messages[-1]["message_type"] in ("question", "follow_up"):
-                last_q_audio = await synthesize_speech(messages[-1]["content"], language)
+                last_q_audio = await synthesize_speech(messages[-1]["content"], language, voice)
                 if last_q_audio:
                     last_audio_base64 = base64.b64encode(last_q_audio).decode()
             
@@ -145,7 +146,7 @@ async def interview_websocket(websocket: WebSocket, session_id: str):
                 if action["action"] == "complete":
                     complete_msg = action.get("message", "Phong van ket thuc.")
                     _save_message(session_id, "interviewer", "system", complete_msg)
-                    complete_audio = await synthesize_speech(complete_msg, language)
+                    complete_audio = await synthesize_speech(complete_msg, language, voice)
                     await websocket.send_json({
                         "type": "interview_complete",
                         "text": complete_msg,
@@ -157,7 +158,7 @@ async def interview_websocket(websocket: WebSocket, session_id: str):
                     _save_message(
                         session_id, "interviewer", msg_type_out, response_text, action.get("question_id")
                     )
-                    resp_audio = await synthesize_speech(response_text, language)
+                    resp_audio = await synthesize_speech(response_text, language, voice)
                     await websocket.send_json({
                         "type": "interviewer_speech",
                         "text": response_text,
@@ -198,7 +199,7 @@ async def interview_websocket(websocket: WebSocket, session_id: str):
                 if action["action"] == "complete":
                     complete_msg = action.get("message", "Phong van ket thuc.")
                     _save_message(session_id, "interviewer", "system", complete_msg)
-                    complete_audio = await synthesize_speech(complete_msg, language)
+                    complete_audio = await synthesize_speech(complete_msg, language, voice)
                     await websocket.send_json({
                         "type": "interview_complete",
                         "text": complete_msg,
@@ -211,7 +212,7 @@ async def interview_websocket(websocket: WebSocket, session_id: str):
                 _save_message(
                     session_id, "interviewer", msg_type_out, response_text, action.get("question_id")
                 )
-                resp_audio = await synthesize_speech(response_text, language)
+                resp_audio = await synthesize_speech(response_text, language, voice)
                 await websocket.send_json({
                     "type": "interviewer_speech",
                     "text": response_text,
@@ -256,7 +257,7 @@ async def interview_websocket(websocket: WebSocket, session_id: str):
                 if action["action"] == "complete":
                     complete_msg = action.get("message", "Phong van ket thuc.")
                     _save_message(session_id, "interviewer", "system", complete_msg)
-                    complete_audio = await synthesize_speech(complete_msg, language)
+                    complete_audio = await synthesize_speech(complete_msg, language, voice)
                     await websocket.send_json({
                         "type": "interview_complete",
                         "text": complete_msg,
@@ -269,7 +270,7 @@ async def interview_websocket(websocket: WebSocket, session_id: str):
                 _save_message(
                     session_id, "interviewer", msg_type_out, response_text, action.get("question_id")
                 )
-                resp_audio = await synthesize_speech(response_text, language)
+                resp_audio = await synthesize_speech(response_text, language, voice)
                 await websocket.send_json({
                     "type": "interviewer_speech",
                     "text": response_text,

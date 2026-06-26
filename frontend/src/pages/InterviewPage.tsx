@@ -7,13 +7,13 @@ import TranscriptPanel from "../components/TranscriptPanel";
 import { useAuth } from "../contexts/AuthContext";
 import { useVoiceInterview } from "../hooks/useVoiceInterview";
 import { apiFetch } from "../lib/api";
-import { 
-  MicrophoneIcon, 
-  PencilSquareIcon, 
-  ArrowPathIcon, 
-  PaperAirplaneIcon, 
-  StopCircleIcon, 
-  CheckCircleIcon, 
+import {
+  MicrophoneIcon,
+  PencilSquareIcon,
+  ArrowPathIcon,
+  PaperAirplaneIcon,
+  StopCircleIcon,
+  CheckCircleIcon,
   EllipsisHorizontalIcon,
   SpeakerWaveIcon,
   PauseIcon
@@ -27,6 +27,11 @@ export default function InterviewPage() {
   const [inputMode, setInputMode] = useState<"voice" | "text">("voice");
   const [textAnswer, setTextAnswer] = useState("");
   const [editedVoiceText, setEditedVoiceText] = useState("");
+  const [voice, setVoice] = useState(() => localStorage.getItem("ai_voice") || "vi-VN-HoaiMyNeural");
+
+  useEffect(() => {
+    localStorage.setItem("ai_voice", voice);
+  }, [voice]);
 
   const handleComplete = useCallback(async () => {
     if (!sessionId || !accessToken) return;
@@ -63,6 +68,7 @@ export default function InterviewPage() {
   } = useVoiceInterview({
     sessionId: sessionId!,
     token: accessToken!,
+    voice,
     onComplete: handleComplete,
   });
 
@@ -107,7 +113,7 @@ export default function InterviewPage() {
     .reverse()
     .find((m) => m.role === "interviewer");
   const currentQuestionText = lastInterviewerMsg?.content || "Hệ thống đang chuẩn bị câu hỏi...";
-  
+
   // Kiểm tra xem AI có đang xử lý (người dùng vừa trả lời xong)
   const isAiProcessing = messages.length > 0 && messages[messages.length - 1].role === "candidate" && !isComplete;
 
@@ -115,50 +121,59 @@ export default function InterviewPage() {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">Phòng phỏng vấn</h1>
-        <span className={`text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 ${connected ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
-          <span className={`w-2 h-2 rounded-full ${connected ? "bg-green-500 animate-ping" : "bg-red-500"}`}></span>
-          {connected ? "Đã kết nối" : "Đang kết nối..."}
-        </span>
+        <div className="flex items-center gap-4">
+          <select
+            value={voice}
+            onChange={(e) => setVoice(e.target.value)}
+            className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 outline-none focus:ring-2 focus:ring-violet-500"
+          >
+            <option value="vi-VN-HoaiMyNeural">Giọng nữ</option>
+            <option value="vi-VN-NamMinhNeural">Giọng nam</option>
+          </select>
+          <span className={`text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 ${connected ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+            <span className={`w-2 h-2 rounded-full ${connected ? "bg-green-500 animate-ping" : "bg-red-500"}`}></span>
+            {connected ? "Đã kết nối" : "Đang kết nối..."}
+          </span>
+        </div>
       </div>
 
       {error && (
         <div className="bg-red-50 text-red-600 p-4 rounded-xl border border-red-100 text-sm shadow-sm flex items-center gap-2">
-           {error}
+          {error}
         </div>
       )}
 
       {/* Bố cục 2 cột trên màn hình lớn */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        
+
         {/* Cột trái: Câu hỏi & Nhập liệu (chiếm 2 phần) */}
         <div className="lg:col-span-2 flex flex-col gap-6">
-          
+
           {/* Hộp hiển thị câu hỏi hiện tại */}
           {!isComplete && (
             <div className="bg-gradient-to-br from-violet-50 to-indigo-50/50 rounded-2xl border border-violet-100 p-6 shadow-sm relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-violet-200/40 rounded-full blur-2xl pointer-events-none"></div>
-              
+
               <div className="flex items-start justify-between gap-4 relative z-10">
                 <div className="space-y-3 flex-1">
                   <div className="flex items-center gap-2">
-                     <span className="text-xs font-bold text-violet-700 tracking-wider uppercase bg-violet-100/50 px-2.5 py-1 rounded-md">Câu hỏi từ nhà tuyển dụng</span>
+                    <span className="text-xs font-bold text-violet-700 tracking-wider uppercase bg-violet-100/50 px-2.5 py-1 rounded-md">Câu hỏi từ nhà tuyển dụng</span>
                   </div>
                   <p className="text-slate-800 text-[17px] font-medium leading-relaxed">
                     {currentQuestionText}
                   </p>
                 </div>
-                
+
                 <div className="flex flex-col items-end gap-3 shrink-0">
                   <button
                     onClick={replayAudio}
                     disabled={!lastQuestionAudio || isAiSpeaking}
-                    className={`p-3 rounded-full shadow-sm flex items-center justify-center transition-all ${
-                      isAiSpeaking 
-                        ? "bg-violet-600 text-white animate-pulse" 
+                    className={`p-3 rounded-full shadow-sm flex items-center justify-center transition-all ${isAiSpeaking
+                        ? "bg-violet-600 text-white animate-pulse"
                         : lastQuestionAudio
-                        ? "bg-white text-slate-700 hover:bg-violet-50 hover:text-violet-700 hover:scale-105 active:scale-95"
-                        : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                    }`}
+                          ? "bg-white text-slate-700 hover:bg-violet-50 hover:text-violet-700 hover:scale-105 active:scale-95"
+                          : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                      }`}
                     title="Đọc lại câu hỏi"
                   >
                     {isAiSpeaking ? (
@@ -189,9 +204,9 @@ export default function InterviewPage() {
 
           {/* Trạng thái AI đang xử lý */}
           {isAiProcessing && (
-             <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm flex flex-col items-center justify-center gap-2">
-                <EllipsisHorizontalIcon className="w-14 h-14 text-violet-500 animate-pulse" />
-             </div>
+            <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm flex flex-col items-center justify-center gap-2">
+              <EllipsisHorizontalIcon className="w-14 h-14 text-violet-500 animate-pulse" />
+            </div>
           )}
 
           {/* Lựa chọn và nhập liệu câu trả lời */}
@@ -205,11 +220,10 @@ export default function InterviewPage() {
                       setInputMode("voice");
                       clearTranscription();
                     }}
-                    className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
-                      inputMode === "voice"
+                    className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${inputMode === "voice"
                         ? "bg-white text-violet-700 shadow-sm"
                         : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
-                    }`}
+                      }`}
                   >
                     <MicrophoneIcon className="w-5 h-5" /> Giọng nói
                   </button>
@@ -219,11 +233,10 @@ export default function InterviewPage() {
                       setInputMode("text");
                       clearTranscription();
                     }}
-                    className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
-                      inputMode === "text"
+                    className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${inputMode === "text"
                         ? "bg-white text-violet-700 shadow-sm"
                         : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
-                    }`}
+                      }`}
                   >
                     <PencilSquareIcon className="w-5 h-5" /> Văn bản
                   </button>

@@ -12,10 +12,11 @@ interface TranscriptMessage {
 interface UseVoiceInterviewOptions {
   sessionId: string;
   token: string;
+  voice: string;
   onComplete?: () => void;
 }
 
-export function useVoiceInterview({ sessionId, token, onComplete }: UseVoiceInterviewOptions) {
+export function useVoiceInterview({ sessionId, token, voice, onComplete }: UseVoiceInterviewOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
   const [messages, setMessages] = useState<TranscriptMessage[]>([]);
@@ -42,7 +43,7 @@ export function useVoiceInterview({ sessionId, token, onComplete }: UseVoiceInte
   }, [autoReadAloud]);
 
   useEffect(() => {
-    const ws = new WebSocket(`${WS_URL}/ws/interview/${sessionId}?token=${token}`);
+    const ws = new WebSocket(`${WS_URL}/ws/interview/${sessionId}?token=${token}&voice=${encodeURIComponent(voice)}`);
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -117,7 +118,7 @@ export function useVoiceInterview({ sessionId, token, onComplete }: UseVoiceInte
     };
 
     return () => ws.close();
-  }, [sessionId, token, onComplete]);
+  }, [sessionId, token, voice, onComplete]);
 
   // Giữ lại để tương thích ngược nếu cần
   const sendAudioChunk = useCallback(
