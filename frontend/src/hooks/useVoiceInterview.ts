@@ -45,12 +45,25 @@ export function useVoiceInterview({ sessionId, token, onComplete }: UseVoiceInte
     const ws = new WebSocket(`${WS_URL}/ws/interview/${sessionId}?token=${token}`);
     wsRef.current = ws;
 
-    ws.onopen = () => setConnected(true);
+    ws.onopen = () => {
+      setConnected(true);
+      setError(null);
+    };
     ws.onclose = () => setConnected(false);
     ws.onerror = () => setError("Lỗi kết nối WebSocket");
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
+
+      if (data.type === "history") {
+        setMessages(data.messages);
+        if (data.question_id) setCurrentQuestionId(data.question_id);
+        if (data.question_index !== undefined) setQuestionIndex(data.question_index);
+        if (data.total_questions) setTotalQuestions(data.total_questions);
+        if (data.last_audio_base64) {
+          setLastQuestionAudio(data.last_audio_base64);
+        }
+      }
 
       if (data.type === "interviewer_speech") {
         setMessages((prev) => [
