@@ -77,7 +77,7 @@ async def get_opening_question(session_id: str) -> dict[str, Any]:
 
     first = main_questions[0]
     greeting = (
-        "Xin chao, toi la nguoi phong van hom nay. Hay bat dau buoi phong van nhe."
+        "Xin chào, tôi là người phỏng vấn bạn hôm này. Chúng ta bắt đầu nhé!"
         if session.get("language") == "vi"
         else "Hello, I will be your interviewer today. Let's begin."
     )

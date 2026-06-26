@@ -1,4 +1,5 @@
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +27,12 @@ async def generate_questions(
 {json.dumps(profile, ensure_ascii=False)[:6000]}
 """
 
-    data, _ = await llm_router.generate_json(user_prompt, system)
+    data, provider = await llm_router.generate_json(user_prompt, system)
+    
+    print("\n" + "="*50)
+    print(f"AI Question Generator Provider : {provider}")
+    print("="*50 + "\n")
+    
     result = QuestionList.model_validate(data)
 
     db.delete_questions(session_id)

@@ -102,11 +102,42 @@ class CandidateProfileData(BaseModel):
         return value
 
 
+VALID_CATEGORIES = {"screening", "technical", "behavioral", "project"}
+
+# Map các giá trị LLM hay trả sai về đúng
+CATEGORY_ALIAS: dict[str, str] = {
+    "star": "behavioral",
+    "situational": "behavioral",
+    "competency": "behavioral",
+    "hr": "screening",
+    "culture": "screening",
+    "general": "screening",
+    "soft_skill": "behavioral",
+    "soft-skill": "behavioral",
+    "technical_project": "project",
+}
+
+
 class GeneratedQuestion(BaseModel):
     category: str
     question_text: str
     order_index: int
     source_context: dict[str, Any] | None = None
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def _normalize_category(cls, v: Any) -> str:
+        """Chuẩn hóa category về 4 giá trị hợp lệ. Map alias → đúng, fallback 'screening'."""
+        raw = str(v).strip().lower()
+        if raw in VALID_CATEGORIES:
+            return raw
+        if raw in CATEGORY_ALIAS:
+            return CATEGORY_ALIAS[raw]
+        # Fuzzy fallback: nếu chứa từ khoá thì map tương ứng
+        for key in VALID_CATEGORIES:
+            if key in raw:
+                return key
+        return "screening"  # safe default
 
 
 class QuestionList(BaseModel):

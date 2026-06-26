@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,19 @@ def _load_prompt(name: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _safe_text(text: str | None) -> str:
+    """
+    Loại bỏ tất cả ký tự không hợp lệ trong PostgreSQL TEXT:
+    - Null bytes (\x00 / \u0000) — gây lỗi '22P05'
+    - Các ký tự điều khiển C0/C1 khác (trừ tab, newline, carriage return)
+    """
+    if not text:
+        return ""
+    # Xóa null byte và các ký tự điều khiển nguy hiểm
+    cleaned = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
+    return cleaned.strip()
+
+
 async def parse_documents(
     session_id: str,
     cv_text: str,
@@ -19,9 +33,13 @@ async def parse_documents(
     position: str,
     industry: str | None,
 ) -> dict[str, Any]:
+    # Đảm bảo text sạch trước khi dùng (phòng khi caller không sanitize)
+    cv_text = _safe_text(cv_text)
+    jd_text = _safe_text(jd_text) if jd_text else None
+
     system = _load_prompt("document_parser.txt")
     user_prompt = f"""CV:
-{cv_text[:8000]}
+{cv_text[:4000]}
 
 JD:
 {jd_text[:4000] if jd_text else "Khong co JD"}
