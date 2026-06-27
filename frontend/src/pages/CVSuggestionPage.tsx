@@ -79,6 +79,73 @@ interface ReportData {
 
 type EditorTab = 'personal_info' | 'experiences' | 'skills' | 'projects' | 'education' | 'achievements';
 
+interface DiffToken {
+  type: 'added' | 'removed' | 'common';
+  value: string;
+}
+
+function computeDiff(oldStr: string, newStr: string): DiffToken[] {
+  const oldWords = (oldStr || "").trim().split(/\s+/).filter(Boolean);
+  const newWords = (newStr || "").trim().split(/\s+/).filter(Boolean);
+  
+  const dp: number[][] = Array(oldWords.length + 1).fill(0).map(() => Array(newWords.length + 1).fill(0));
+  
+  for (let i = 1; i <= oldWords.length; i++) {
+    for (let j = 1; j <= newWords.length; j++) {
+      if (oldWords[i-1].toLowerCase() === newWords[j-1].toLowerCase()) {
+        dp[i][j] = dp[i-1][j-1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i-1][j], dp[i][j-1]);
+      }
+    }
+  }
+  
+  const result: DiffToken[] = [];
+  let i = oldWords.length;
+  let j = newWords.length;
+  
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldWords[i-1].toLowerCase() === newWords[j-1].toLowerCase()) {
+      result.unshift({ type: 'common', value: oldWords[i-1] });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) {
+      result.unshift({ type: 'added', value: newWords[j-1] });
+      j--;
+    } else {
+      result.unshift({ type: 'removed', value: oldWords[i-1] });
+      i--;
+    }
+  }
+  return result;
+}
+
+const renderDiffText = (oldStr: string, newStr: string) => {
+  const diffs = computeDiff(oldStr, newStr);
+  if (diffs.length === 0) return <span className="text-slate-400 italic">Trống</span>;
+  return (
+    <span className="leading-relaxed break-words">
+      {diffs.map((token, idx) => {
+        if (token.type === 'added') {
+          return (
+            <span key={idx} className="bg-emerald-100 text-emerald-800 px-1 py-0.5 rounded mx-0.5 font-bold">
+              {token.value}
+            </span>
+          );
+        }
+        if (token.type === 'removed') {
+          return (
+            <span key={idx} className="bg-rose-100 text-rose-800 line-through px-1 py-0.5 rounded mx-0.5 font-medium">
+              {token.value}
+            </span>
+          );
+        }
+        return <span key={idx} className="mx-0.5">{token.value}</span>;
+      })}
+    </span>
+  );
+};
+
 export default function CVSuggestionPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const { accessToken } = useAuth();
@@ -91,6 +158,8 @@ export default function CVSuggestionPage() {
 
   // Profile Editor State
   const [profile, setProfile] = useState<CandidateProfileData | null>(null);
+  const [originalProfile, setOriginalProfile] = useState<CandidateProfileData | null>(null);
+  const [viewMode, setViewMode] = useState<'edit' | 'compare'>('edit');
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [errorProfile, setErrorProfile] = useState('');
@@ -173,7 +242,7 @@ export default function CVSuggestionPage() {
         }
 
         // Normalize fields if null
-        setProfile({
+        const initialProfile = {
           skills: data.skills || [],
           experiences: data.experiences || [],
           projects: data.projects || [],
@@ -183,7 +252,9 @@ export default function CVSuggestionPage() {
             ...gapAnalysis,
             personal_info: personalInfo
           }
-        });
+        };
+        setProfile(initialProfile);
+        setOriginalProfile(JSON.parse(JSON.stringify(initialProfile)));
       } catch (err) {
         setErrorProfile(err instanceof Error ? err.message : 'Không tải được hồ sơ ứng viên');
       } finally {
@@ -302,6 +373,192 @@ export default function CVSuggestionPage() {
     const achievements = [...profile.achievements];
     achievements[idx] = value;
     setProfile({ ...profile, achievements });
+  };
+
+  const CompareView = () => {
+    if (!originalProfile || !profile) return null;
+    
+    return (
+      <div className="space-y-6 max-h-[600px] overflow-y-auto pr-2 mt-4" style={{ scrollbarWidth: 'thin' }}>
+        
+        {/* PERSONAL INFO COMPARISON */}
+        <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 space-y-4">
+          <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider border-b border-slate-200/60 pb-2 flex items-center gap-1.5">
+            <UserIcon className="w-4 h-4 text-emerald-500" />
+            1. Thông tin cá nhân & Giới thiệu
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <span className="text-[9px] font-bold text-slate-400 uppercase">Họ và tên</span>
+              <p className="text-sm font-bold text-slate-800">
+                {renderDiffText(originalProfile.jd_gap_analysis?.personal_info?.full_name || "", profile.jd_gap_analysis?.personal_info?.full_name || "")}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <span className="text-[9px] font-bold text-slate-400 uppercase">Liên hệ</span>
+              <p className="text-xs font-semibold text-slate-600 leading-relaxed">
+                Email: {renderDiffText(originalProfile.jd_gap_analysis?.personal_info?.email || "", profile.jd_gap_analysis?.personal_info?.email || "")} <br/>
+                SĐT: {renderDiffText(originalProfile.jd_gap_analysis?.personal_info?.phone || "", profile.jd_gap_analysis?.personal_info?.phone || "")} <br/>
+                Địa chỉ: {renderDiffText(originalProfile.jd_gap_analysis?.personal_info?.address || "", profile.jd_gap_analysis?.personal_info?.address || "")}
+              </p>
+            </div>
+          </div>
+          <div className="space-y-1 border-t border-slate-200/60 pt-3">
+            <span className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Mục tiêu / Giới thiệu bản thân</span>
+            <div className="text-xs text-slate-700 leading-relaxed font-semibold">
+              {renderDiffText(originalProfile.jd_gap_analysis?.personal_info?.summary || "", profile.jd_gap_analysis?.personal_info?.summary || "")}
+            </div>
+          </div>
+        </div>
+
+        {/* EXPERIENCES COMPARISON */}
+        <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 space-y-4">
+          <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider border-b border-slate-200/60 pb-2 flex items-center gap-1.5">
+            <BriefcaseIcon className="w-4 h-4 text-emerald-500" />
+            2. Kinh nghiệm làm việc
+          </h3>
+          {profile.experiences.length === 0 ? (
+            <p className="text-xs text-slate-400 italic">Không có thông tin kinh nghiệm</p>
+          ) : (
+            <div className="space-y-4">
+              {profile.experiences.map((exp, idx) => {
+                const origExp = originalProfile.experiences[idx] || { company: "", role: "", period: "", highlights: [] };
+                return (
+                  <div key={idx} className="border-l-2 border-emerald-500 pl-4 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h4 className="text-xs font-bold text-slate-800">
+                        {renderDiffText(origExp.company, exp.company)} - {renderDiffText(origExp.role, exp.role)}
+                      </h4>
+                      <span className="text-[9px] font-bold text-slate-400 bg-white border border-slate-100 px-2 py-0.5 rounded-full">
+                        {renderDiffText(origExp.period, exp.period)}
+                      </span>
+                    </div>
+                    <div className="space-y-1.5 pl-2">
+                      {exp.highlights.map((hl, hlIdx) => {
+                        const origHl = origExp.highlights[hlIdx] || "";
+                        return (
+                          <div key={hlIdx} className="text-xs text-slate-600 font-semibold leading-relaxed">
+                            • {renderDiffText(origHl, hl)}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* PROJECTS COMPARISON */}
+        <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 space-y-4">
+          <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider border-b border-slate-200/60 pb-2 flex items-center gap-1.5">
+            <DocumentTextIcon className="w-4 h-4 text-emerald-500" />
+            3. Dự án tiêu biểu
+          </h3>
+          {profile.projects.length === 0 ? (
+            <p className="text-xs text-slate-400 italic">Không có thông tin dự án</p>
+          ) : (
+            <div className="space-y-4">
+              {profile.projects.map((proj, idx) => {
+                const origProj = originalProfile.projects[idx] || { name: "", role: "", tech_stack: [], description: "" };
+                return (
+                  <div key={idx} className="border-l-2 border-indigo-500 pl-4 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h4 className="text-xs font-bold text-slate-800">
+                        {renderDiffText(origProj.name, proj.name)} (Vai trò: {renderDiffText(origProj.role, proj.role)})
+                      </h4>
+                      <span className="text-[9px] font-bold text-indigo-600 bg-white border border-slate-100 px-2 py-0.5 rounded-full">
+                        Tech stack: {renderDiffText((origProj.tech_stack || []).join(", "), (proj.tech_stack || []).join(", "))}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-600 font-semibold leading-relaxed pl-2">
+                      {renderDiffText(origProj.description, proj.description)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* SKILLS COMPARISON */}
+        <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 space-y-4">
+          <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider border-b border-slate-200/60 pb-2 flex items-center gap-1.5">
+            <SparklesIcon className="w-4 h-4 text-emerald-500" />
+            4. Kỹ năng chuyên môn
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {profile.skills.map((sk, idx) => {
+              const origSk = originalProfile.skills[idx] || { name: "", level: "", years: 0 };
+              return (
+                <span key={idx} className="inline-flex items-center gap-1 bg-white border border-slate-200/60 rounded-xl px-3 py-1 text-xs font-bold text-slate-700">
+                  {renderDiffText(origSk.name, sk.name)} 
+                  <span className="text-[9px] text-slate-400 font-medium">
+                    ({renderDiffText(origSk.level || "", sk.level || "")} - {renderDiffText(String(origSk.years || ""), String(sk.years || ""))} năm)
+                  </span>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* EDUCATION COMPARISON */}
+        <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 space-y-4">
+          <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider border-b border-slate-200/60 pb-2 flex items-center gap-1.5">
+            <AcademicCapIcon className="w-4 h-4 text-emerald-500" />
+            5. Học vấn
+          </h3>
+          {profile.education.length === 0 ? (
+            <p className="text-xs text-slate-400 italic">Không có thông tin học vấn</p>
+          ) : (
+            <div className="space-y-4">
+              {profile.education.map((edu, idx) => {
+                const origEdu = originalProfile.education[idx] || { school: "", degree: "", period: "" };
+                return (
+                  <div key={idx} className="space-y-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h4 className="text-xs font-bold text-slate-800">
+                        {renderDiffText(origEdu.school, edu.school)}
+                      </h4>
+                      <span className="text-[9px] font-bold text-slate-400">
+                        {renderDiffText(origEdu.period, edu.period)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 font-semibold pl-2">
+                      Bằng cấp: {renderDiffText(origEdu.degree, edu.degree)}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* ACHIEVEMENTS COMPARISON */}
+        <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 space-y-4">
+          <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider border-b border-slate-200/60 pb-2 flex items-center gap-1.5">
+            <TrophyIcon className="w-4 h-4 text-emerald-500" />
+            6. Chứng chỉ & Thành tựu
+          </h3>
+          {profile.achievements.length === 0 ? (
+            <p className="text-xs text-slate-400 italic">Không có thông tin chứng chỉ/thành tựu</p>
+          ) : (
+            <div className="space-y-2 pl-2">
+              {profile.achievements.map((ach, idx) => {
+                const origAch = originalProfile.achievements[idx] || "";
+                return (
+                  <div key={idx} className="text-xs text-slate-600 font-semibold leading-relaxed">
+                    • {renderDiffText(origAch, ach)}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+      </div>
+    );
   };
 
   // Rendering Helper Lists
@@ -540,10 +797,36 @@ export default function CVSuggestionPage() {
         {/* RIGHT COLUMN: Interactive CV Editor (7 cols) */}
         <div className="lg:col-span-7">
           <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col min-h-[650px] relative">
-            <h2 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2">
-              <DocumentTextIcon className="w-6 h-6 text-emerald-600" />
-              Trình chỉnh sửa thông tin hồ sơ
-            </h2>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 border-b border-slate-100 pb-3">
+              <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                <DocumentTextIcon className="w-6 h-6 text-emerald-600" />
+                Nội dung hồ sơ ứng viên
+              </h2>
+              <div className="flex bg-slate-100 p-1 rounded-xl shadow-inner self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('edit')}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    viewMode === 'edit'
+                      ? 'bg-white text-slate-800 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Chỉnh sửa
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('compare')}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    viewMode === 'compare'
+                      ? 'bg-white text-emerald-600 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  So sánh Trước/Sau
+                </button>
+              </div>
+            </div>
 
             {loadingProfile ? (
               <div className="flex-1 flex flex-col items-center justify-center py-20">
@@ -551,7 +834,10 @@ export default function CVSuggestionPage() {
                 <p className="text-slate-400 text-xs font-semibold">Đang tải hồ sơ...</p>
               </div>
             ) : profile ? (
-              <>
+              viewMode === 'compare' ? (
+                <CompareView />
+              ) : (
+                <>
                 {/* Editor Tab Headers */}
                 <div className="flex border-b border-slate-100 gap-1 pb-px overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
                   {([
@@ -1032,6 +1318,7 @@ export default function CVSuggestionPage() {
 
                 </div>
               </>
+              )
             ) : (
               <div className="flex-1 flex items-center justify-center text-slate-400 text-sm font-semibold">
                 Không tải được dữ liệu hồ sơ ứng viên
