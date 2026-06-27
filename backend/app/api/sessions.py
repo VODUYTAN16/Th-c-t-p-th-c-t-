@@ -225,6 +225,11 @@ async def update_candidate_profile(
     }
     
     profile = db.upsert_candidate_profile(session_id, update_data)
+    
+    # Sync to original Document for future reuse
+    if session.get("cv_document_id"):
+        db.update_document(session["cv_document_id"], {"parsed_profile": update_data})
+        
     return profile
 
 

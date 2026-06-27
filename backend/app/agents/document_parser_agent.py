@@ -80,7 +80,14 @@ Nganh: {industry or "Khong xac dinh"}
     for idx, (section, text) in enumerate(chunks):
         store_embedding(session["cv_document_id"], session_id, idx, section, text)
 
-    db.update_document(session["cv_document_id"], {"parse_status": "done", "raw_text": cv_text})
+    db.update_document(
+        session["cv_document_id"],
+        {
+            "parse_status": "done",
+            "raw_text": cv_text,
+            "parsed_profile": profile_dict,
+        },
+    )
     if session.get("jd_document_id") and jd_text:
         db.update_document(session["jd_document_id"], {"parse_status": "done", "raw_text": jd_text})
 

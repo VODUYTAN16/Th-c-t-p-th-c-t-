@@ -7,6 +7,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 from app.agents.schemas import AnswerEvaluationData, CvSuggestion, ReportSummary
+from app.agents.cv_reviewer_agent import review_cv
 from app.core.database import db
 from app.core.llm_router import llm_router
 from app.services.pdf_report import generate_report_pdf
@@ -30,7 +31,7 @@ def _coerce_float(value: Any, fallback: float) -> float:
     return fallback
 
 
-def _build_report_summary(data: dict[str, Any], computed_overall: float) -> ReportSummary:
+def _build_report_summary(data: dict[str, Any], computed_overall: float, cv_suggestions: list[CvSuggestion]) -> ReportSummary:
     """Dung ReportSummary chiu loi khi LLM tra JSON sai cau truc."""
     data = data if isinstance(data, dict) else {}
 
@@ -43,20 +44,7 @@ def _build_report_summary(data: dict[str, Any], computed_overall: float) -> Repo
             "He thong khong tao duoc tom tat chi tiet, vui long xem danh gia tung cau hoi."
         )
 
-    raw_suggestions = data.get("cv_suggestions")
-    suggestions: list[CvSuggestion] = []
-    if isinstance(raw_suggestions, list):
-        for item in raw_suggestions:
-            if isinstance(item, dict) and item.get("suggestion"):
-                suggestions.append(
-                    CvSuggestion(
-                        section=str(item.get("section", "Chung")),
-                        suggestion=str(item["suggestion"]),
-                        priority=str(item.get("priority", "medium")),
-                    )
-                )
-
-    return ReportSummary(overall_score=overall, summary=summary_text, cv_suggestions=suggestions)
+    return ReportSummary(overall_score=overall, summary=summary_text, cv_suggestions=cv_suggestions)
 
 
 def _weighted_overall(scores: dict[str, float]) -> float:
@@ -187,7 +175,66 @@ Lĩnh vực: {session.get('industry', 'Khong xac dinh')}
     except Exception:
         summary_data = {}
 
-    report_summary = _build_report_summary(summary_data, overall_score)
+    # Call the dedicated CV Reviewer Agent on raw CV text
+    cv_text = ""
+    jd_text = None
+    if session.get("cv_document_id"):
+        cv_doc = db.get_document(session["cv_document_id"])
+        if cv_doc:
+            cv_text = cv_doc.get("raw_text") or ""
+    
+    if session.get("jd_document_id"):
+        jd_doc = db.get_document(session["jd_document_id"])
+        if jd_doc:
+            jd_text = jd_doc.get("raw_text")
+
+    cv_review = await review_cv(
+        cv_text=cv_text,
+        jd_text=jd_text,
+        position=session["position_applied"],
+        industry=session.get("industry"),
+        language=session.get("language", "vi"),
+    )
+    
+    suggestions: list[CvSuggestion] = []
+    
+    # 1. Add overall CV Critique card
+    score = cv_review.get("cv_score", 0.0)
+    critique = cv_review.get("general_critique", "")
+    priority = "high" if score <= 5.0 else ("medium" if score <= 7.5 else "low")
+    
+    suggestions.append(
+        CvSuggestion(
+            section="Đánh giá tổng quan CV",
+            suggestion=f"Điểm chất lượng CV: {score}/10.\n\nNhận xét chung: {critique}",
+            priority=priority
+        )
+    )
+    
+    # 2. Add grammar & spelling issues if any
+    grammar_issues = cv_review.get("spelling_grammar_issues", [])
+    if grammar_issues:
+        issues_text = "\n".join([f"- {issue}" for issue in grammar_issues])
+        suggestions.append(
+            CvSuggestion(
+                section="Lỗi chính tả & Ngữ pháp",
+                suggestion=f"Phát hiện các lỗi chính tả, hành văn thiếu chuyên nghiệp:\n{issues_text}",
+                priority="high"
+            )
+        )
+        
+    # 3. Add other detailed suggestions
+    for item in cv_review.get("cv_suggestions", []):
+        if isinstance(item, dict) and item.get("suggestion"):
+            suggestions.append(
+                CvSuggestion(
+                    section=str(item.get("section", "Chung")),
+                    suggestion=str(item["suggestion"]),
+                    priority=str(item.get("priority", "medium")),
+                )
+            )
+
+    report_summary = _build_report_summary(summary_data, overall_score, suggestions)
 
     eval_list_for_pdf = [
         {
