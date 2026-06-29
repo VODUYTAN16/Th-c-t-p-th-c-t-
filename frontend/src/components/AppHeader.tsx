@@ -1,6 +1,6 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { HomeIcon, ChartBarIcon, ClockIcon, Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, ChartBarIcon, ClockIcon, Bars3Icon, XMarkIcon, ArrowRightOnRectangleIcon } from "@heroicons/react/24/outline";
 import React, { useState } from "react";
 
 export default function AppHeader() {
@@ -66,10 +66,22 @@ export default function AppHeader() {
           <div className="hidden md:flex flex-1 items-center justify-end gap-4">
             {user ? (
               <>
-                <span className="text-[13px] text-slate-500 font-medium">{user.email}</span>
-                <button onClick={handleSignOut} className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-colors">
-                  Đăng xuất
-                </button>
+                <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-full p-1 pr-3 transition-colors hover:border-slate-200">
+                  <div className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center font-bold text-[11px] uppercase shrink-0">
+                    {user.email?.[0] || 'U'}
+                  </div>
+                  <span className="text-[13px] text-slate-600 font-medium max-w-[140px] truncate" title={user.email || ""}>
+                    {user.email}
+                  </span>
+                  <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                  <button 
+                    onClick={handleSignOut} 
+                    className="text-slate-400 hover:text-red-500 transition-colors flex items-center justify-center p-1 rounded-full hover:bg-red-50"
+                    title="Đăng xuất"
+                  >
+                    <ArrowRightOnRectangleIcon className="w-4 h-4 stroke-[2.5px]" />
+                  </button>
+                </div>
               </>
             ) : (
               <>
@@ -95,10 +107,19 @@ export default function AppHeader() {
             <div className="flex flex-col gap-3 pt-4 border-t border-slate-100">
               {user ? (
                 <>
-                  <span className="text-[13px] text-slate-500 font-medium px-2">{user.email}</span>
-                  <button onClick={handleSignOut} className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-xl text-sm font-semibold transition-colors w-full">
-                    Đăng xuất
-                  </button>
+                  <div className="flex items-center gap-3 px-2 py-2 bg-slate-50 rounded-xl border border-slate-100">
+                    <div className="w-8 h-8 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center font-bold text-xs uppercase shrink-0">
+                      {user.email?.[0] || 'U'}
+                    </div>
+                    <span className="text-[13px] text-slate-600 font-medium flex-1 truncate">{user.email}</span>
+                    <button 
+                      onClick={handleSignOut} 
+                      className="text-slate-500 hover:text-red-500 bg-white shadow-sm border border-slate-200 hover:border-red-200 p-2 rounded-lg transition-all"
+                      title="Đăng xuất"
+                    >
+                      <ArrowRightOnRectangleIcon className="w-4 h-4 stroke-[2.5px]" />
+                    </button>
+                  </div>
                 </>
               ) : (
                 <>
