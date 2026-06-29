@@ -1,5 +1,13 @@
 const API_URL = import.meta.env.VITE_API_URL as string;
 
+
+export class ApiError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
@@ -18,9 +26,24 @@ export async function apiFetch<T>(
   const res = await fetch(`${API_URL}${path}`, { ...options, headers });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || "Request failed");
+    throw new ApiError(res.status, err.detail || "Request failed");
   }
   return res.json();
+}
+
+export interface DocumentResponse {
+  id: string;
+  file_name: string;
+  type: string;
+  created_at: string;
+}
+
+export async function getDocuments(docType: "cv" | "jd", token: string) {
+  return apiFetch<DocumentResponse[]>(`/documents?doc_type=${docType}`, {}, token);
+}
+
+export async function getDocumentUrl(docId: string, token: string) {
+  return apiFetch<{ url: string }>(`/documents/${docId}/url`, {}, token);
 }
 
 export async function uploadDocument(
@@ -74,4 +97,25 @@ export interface Report {
     weaknesses: string[];
   }>;
   pdf_url: string | null;
+}
+
+export interface HintResponse {
+  hint: string;
+  provider: string;
+}
+
+export async function fetchAnswerHint(
+  sessionId: string,
+  questionText: string,
+  language: string,
+  token: string
+): Promise<HintResponse> {
+  return apiFetch<HintResponse>(
+    `/sessions/${sessionId}/hint`,
+    {
+      method: "POST",
+      body: JSON.stringify({ question_text: questionText, language }),
+    },
+    token
+  );
 }

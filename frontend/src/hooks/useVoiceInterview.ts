@@ -12,10 +12,11 @@ interface TranscriptMessage {
 interface UseVoiceInterviewOptions {
   sessionId: string;
   token: string;
+  voice: string;
   onComplete?: () => void;
 }
 
-export function useVoiceInterview({ sessionId, token, onComplete }: UseVoiceInterviewOptions) {
+export function useVoiceInterview({ sessionId, token, voice, onComplete }: UseVoiceInterviewOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
   const [messages, setMessages] = useState<TranscriptMessage[]>([]);
@@ -42,15 +43,28 @@ export function useVoiceInterview({ sessionId, token, onComplete }: UseVoiceInte
   }, [autoReadAloud]);
 
   useEffect(() => {
-    const ws = new WebSocket(`${WS_URL}/ws/interview/${sessionId}?token=${token}`);
+    const ws = new WebSocket(`${WS_URL}/ws/interview/${sessionId}?token=${token}&voice=${encodeURIComponent(voice)}`);
     wsRef.current = ws;
 
-    ws.onopen = () => setConnected(true);
+    ws.onopen = () => {
+      setConnected(true);
+      setError(null);
+    };
     ws.onclose = () => setConnected(false);
     ws.onerror = () => setError("Lỗi kết nối WebSocket");
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
+
+      if (data.type === "history") {
+        setMessages(data.messages);
+        if (data.question_id) setCurrentQuestionId(data.question_id);
+        if (data.question_index !== undefined) setQuestionIndex(data.question_index);
+        if (data.total_questions) setTotalQuestions(data.total_questions);
+        if (data.last_audio_base64) {
+          setLastQuestionAudio(data.last_audio_base64);
+        }
+      }
 
       if (data.type === "interviewer_speech") {
         setMessages((prev) => [
@@ -104,7 +118,7 @@ export function useVoiceInterview({ sessionId, token, onComplete }: UseVoiceInte
     };
 
     return () => ws.close();
-  }, [sessionId, token, onComplete]);
+  }, [sessionId, token, voice, onComplete]);
 
   // Giữ lại để tương thích ngược nếu cần
   const sendAudioChunk = useCallback(

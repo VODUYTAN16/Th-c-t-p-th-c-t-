@@ -18,8 +18,14 @@ class Settings(BaseSettings):
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5:7b"
+
     gemini_api_key: str = ""
-    llm_prefer: str = "auto"
+    gemini_model: str = "gemini-2.5-flash"
+
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.1-8b-instant"
+
+    llm_prefer: str = "auto"  # auto | local | cloud | groq | gemini | ollama
 
     whisper_model: str = "small"
     whisper_device: str = "cpu"

@@ -10,6 +10,15 @@ from app.services.supabase_storage import storage_service
 logger = logging.getLogger(__name__)
 
 
+def _sanitize_text(text: str) -> str:
+    """
+    Sanitize text extracted from PDF/DOCX before saving to PostgreSQL.
+    - Remove null bytes (\x00) which PostgreSQL does not support in text columns.
+    - Strip leading/trailing whitespaces (including newline before %PDF header).
+    """
+    return text.replace("\x00", "").strip()
+
+
 async def run_document_pipeline(session_id: str) -> None:
     session = db.get_session_with_docs(session_id)
     if not session:
@@ -20,13 +29,13 @@ async def run_document_pipeline(session_id: str) -> None:
     try:
         cv_doc = session.get("cv_document") or {}
         cv_bytes = storage_service.download_file(cv_doc["storage_bucket"], cv_doc["storage_path"])
-        cv_text = extract_text_from_bytes(cv_bytes, cv_doc["file_name"])
+        cv_text = _sanitize_text(extract_text_from_bytes(cv_bytes, cv_doc["file_name"]))
 
         jd_text = None
         jd_doc = session.get("jd_document")
         if jd_doc:
             jd_bytes = storage_service.download_file(jd_doc["storage_bucket"], jd_doc["storage_path"])
-            jd_text = extract_text_from_bytes(jd_bytes, jd_doc["file_name"])
+            jd_text = _sanitize_text(extract_text_from_bytes(jd_bytes, jd_doc["file_name"]))
 
         profile = await parse_documents(
             session_id,

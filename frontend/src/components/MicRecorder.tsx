@@ -12,7 +12,7 @@ export default function MicRecorder({ onAudioChunk, disabled }: MicRecorderProps
 
   const sendFullRecording = useCallback(() => {
     if (chunksRef.current.length === 0) return;
-    // Gop toan bo cac manh thanh 1 blob WebM hoan chinh (co header)
+    // Merge chunks into a complete WebM blob with headers
     const blob = new Blob(chunksRef.current, { type: "audio/webm" });
     chunksRef.current = [];
     const reader = new FileReader();
@@ -35,12 +35,12 @@ export default function MicRecorder({ onAudioChunk, disabled }: MicRecorderProps
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
 
-      // Chi gui khi dung han -> blob day du header, STT decode duoc
+      // Send only when stopped to ensure complete headers for STT
       recorder.onstop = () => {
         sendFullRecording();
       };
 
-      // Khong dung timeslice: ghi lien tuc, chi xuat data khi stop()
+      // Record continuously without timeslice, export data on stop
       recorder.start();
       setRecording(true);
     } catch {
@@ -50,7 +50,7 @@ export default function MicRecorder({ onAudioChunk, disabled }: MicRecorderProps
 
   const stopRecording = () => {
     if (mediaRecorderRef.current?.state === "recording") {
-      // stop() se kich hoat ondataavailable roi onstop -> gui blob
+      // stop() triggers ondataavailable then onstop to send blob
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
     }
@@ -62,11 +62,10 @@ export default function MicRecorder({ onAudioChunk, disabled }: MicRecorderProps
       <button
         onClick={recording ? stopRecording : startRecording}
         disabled={disabled}
-        className={`w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl shadow-lg transition ${
-          recording
+        className={`w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl shadow-lg transition ${recording
             ? "bg-red-500 hover:bg-red-600 animate-pulse"
             : "bg-primary-600 hover:bg-primary-700"
-        } disabled:opacity-50`}
+          } disabled:opacity-50`}
       >
         {recording ? "⏹" : "🎤"}
       </button>
