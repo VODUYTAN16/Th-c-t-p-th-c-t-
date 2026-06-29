@@ -98,3 +98,24 @@ export interface Report {
   }>;
   pdf_url: string | null;
 }
+
+export interface HintResponse {
+  hint: string;
+  provider: string;
+}
+
+export async function fetchAnswerHint(
+  sessionId: string,
+  questionText: string,
+  language: string,
+  token: string
+): Promise<HintResponse> {
+  return apiFetch<HintResponse>(
+    `/sessions/${sessionId}/hint`,
+    {
+      method: "POST",
+      body: JSON.stringify({ question_text: questionText, language }),
+    },
+    token
+  );
+}

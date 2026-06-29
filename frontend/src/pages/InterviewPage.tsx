@@ -6,7 +6,7 @@ import MicRecorder from "../components/MicRecorder";
 import TranscriptPanel from "../components/TranscriptPanel";
 import { useAuth } from "../contexts/AuthContext";
 import { useVoiceInterview } from "../hooks/useVoiceInterview";
-import { apiFetch } from "../lib/api";
+import { apiFetch, fetchAnswerHint } from "../lib/api";
 import {
   MicrophoneIcon,
   PencilSquareIcon,
@@ -16,7 +16,9 @@ import {
   CheckCircleIcon,
   EllipsisHorizontalIcon,
   SpeakerWaveIcon,
-  PauseIcon
+  PauseIcon,
+  LightBulbIcon,
+  ChevronUpIcon,
 } from "@heroicons/react/24/outline";
 
 export default function InterviewPage() {
@@ -28,6 +30,10 @@ export default function InterviewPage() {
   const [textAnswer, setTextAnswer] = useState("");
   const [editedVoiceText, setEditedVoiceText] = useState("");
   const [voice, setVoice] = useState(() => localStorage.getItem("ai_voice") || "vi-VN-HoaiMyNeural");
+
+  const [hintText, setHintText] = useState<string | null>(null);
+  const [isLoadingHint, setIsLoadingHint] = useState(false);
+  const [showHint, setShowHint] = useState(false);
 
   useEffect(() => {
     localStorage.setItem("ai_voice", voice);
@@ -72,12 +78,28 @@ export default function InterviewPage() {
     onComplete: handleComplete,
   });
 
-  // Đồng bộ hóa kết quả chuyển đổi giọng nói -> văn bản vào textarea chỉnh sửa
+  // Sync voice transcription result into editable textarea
   useEffect(() => {
     if (transcriptionResult !== null) {
       setEditedVoiceText(transcriptionResult);
     }
   }, [transcriptionResult]);
+
+  // Reset hint state whenever a new question appears
+  const lastInterviewerMsgForHint = [...messages]
+    .reverse()
+    .find((m) => m.role === "interviewer");
+  const currentQuestionKey = lastInterviewerMsgForHint?.content ?? "";
+
+  // Derived early so handleFetchHint can access it before the early return guard
+  const currentQuestionTextEarly =
+    lastInterviewerMsgForHint?.content || "Hệ thống đang chuẩn bị câu hỏi...";
+
+  useEffect(() => {
+    setHintText(null);
+    setShowHint(false);
+    setIsLoadingHint(false);
+  }, [currentQuestionKey]);
 
   const handleEnd = () => {
     endInterview();
@@ -106,9 +128,36 @@ export default function InterviewPage() {
     setEditedVoiceText("");
   };
 
+  const handleFetchHint = async () => {
+    if (!sessionId || !accessToken || isLoadingHint) return;
+
+    // If hint already loaded, just toggle panel visibility without re-fetching
+    if (hintText !== null) {
+      setShowHint((prev) => !prev);
+      return;
+    }
+
+    setIsLoadingHint(true);
+    try {
+      const res = await fetchAnswerHint(
+        sessionId,
+        currentQuestionTextEarly,
+        "vi",
+        accessToken
+      );
+      setHintText(res.hint);
+      setShowHint(true);
+    } catch {
+      setHintText("Không thể tạo gợi ý. Vui lòng thử lại.");
+      setShowHint(true);
+    } finally {
+      setIsLoadingHint(false);
+    }
+  };
+
   if (!sessionId || !accessToken) return null;
 
-  // Lấy câu hỏi hiện tại từ cuộc hội thoại
+  // Get the latest interviewer message as current question
   const lastInterviewerMsg = [...messages]
     .reverse()
     .find((m) => m.role === "interviewer");
@@ -165,14 +214,15 @@ export default function InterviewPage() {
                 </div>
 
                 <div className="flex flex-col items-end gap-3 shrink-0">
+                  {/* Replay audio button */}
                   <button
                     onClick={replayAudio}
                     disabled={!lastQuestionAudio || isAiSpeaking}
                     className={`p-3 rounded-full shadow-sm flex items-center justify-center transition-all ${isAiSpeaking
-                        ? "bg-violet-600 text-white animate-pulse"
-                        : lastQuestionAudio
-                          ? "bg-white text-slate-700 hover:bg-violet-50 hover:text-violet-700 hover:scale-105 active:scale-95"
-                          : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                      ? "bg-violet-600 text-white animate-pulse"
+                      : lastQuestionAudio
+                        ? "bg-white text-slate-700 hover:bg-violet-50 hover:text-violet-700 hover:scale-105 active:scale-95"
+                        : "bg-slate-100 text-slate-400 cursor-not-allowed"
                       }`}
                     title="Đọc lại câu hỏi"
                   >
@@ -182,8 +232,68 @@ export default function InterviewPage() {
                       <SpeakerWaveIcon className="w-5 h-5" />
                     )}
                   </button>
+
+                  {/* Hint button: pill shape with visible label for clarity */}
+                  <button
+                    id="btn-answer-hint"
+                    onClick={handleFetchHint}
+                    disabled={isLoadingHint || isAiSpeaking || !connected}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all ${isLoadingHint
+                        ? "bg-amber-400 text-white animate-pulse cursor-not-allowed"
+                        : showHint
+                          ? "bg-amber-500 text-white hover:bg-amber-600 hover:scale-105 active:scale-95"
+                          : hintText !== null
+                            ? "bg-amber-50 text-amber-600 border border-amber-300 hover:bg-amber-100 hover:scale-105 active:scale-95"
+                            : "bg-white text-amber-500 border border-amber-200 hover:bg-amber-50 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                      }`}
+                    title={showHint ? "Ẩn gợi ý" : "Gợi ý câu trả lời"}
+                  >
+                    {isLoadingHint ? (
+                      <><ArrowPathIcon className="w-4 h-4 animate-spin" /> <span>Đang tạo...</span></>
+                    ) : showHint ? (
+                      <><ChevronUpIcon className="w-4 h-4" /> <span>Ẩn gợi ý</span></>
+                    ) : hintText !== null ? (
+                      <><LightBulbIcon className="w-4 h-4" /> <span>Xem lại gợi ý</span></>
+                    ) : (
+                      <><LightBulbIcon className="w-4 h-4" /> <span>Gợi ý trả lời</span></>
+                    )}
+                  </button>
                 </div>
               </div>
+
+              {/* Hint panel: slides in below the question text */}
+              {showHint && hintText && (
+                <div className="mt-4 relative z-10 rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2 shrink-0">
+                      <LightBulbIcon className="w-4 h-4 text-amber-500" />
+                      <span className="text-xs font-bold text-amber-700 uppercase tracking-wide">Gợi ý trả lời</span>
+                    </div>
+                    {/* <button
+                      id="btn-hide-hint"
+                      onClick={() => setShowHint(false)}
+                      className="text-amber-400 hover:text-amber-600 transition-colors shrink-0"
+                      title="Ẩn gợi ý"
+                    >
+                      <ChevronUpIcon className="w-4 h-4" />
+                    </button> */}
+                  </div>
+                  <ul className="mt-3 space-y-2">
+                    {hintText
+                      .split("\n")
+                      .filter((line) => line.trim())
+                      .map((line, idx) => (
+                        <li key={idx} className="flex items-start gap-2 text-sm text-amber-900 leading-relaxed">
+                          <span className="mt-0.5 text-amber-400 shrink-0">•</span>
+                          <span>{line.replace(/^[•\-\*]\s*/, "")}</span>
+                        </li>
+                      ))}
+                  </ul>
+                  <p className="mt-3 text-[11px] text-amber-500 italic">
+                    Chỉ để tham khảo hãy tự suy nghĩ thêm!
+                  </p>
+                </div>
+              )}
 
               <div className="mt-5 pt-4 border-t border-violet-100 flex justify-between items-center relative z-10 text-xs">
                 <span className="text-violet-600 font-medium flex items-center gap-1.5">
@@ -221,8 +331,8 @@ export default function InterviewPage() {
                       clearTranscription();
                     }}
                     className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${inputMode === "voice"
-                        ? "bg-white text-violet-700 shadow-sm"
-                        : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
+                      ? "bg-white text-violet-700 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
                       }`}
                   >
                     <MicrophoneIcon className="w-5 h-5" /> Giọng nói
@@ -234,8 +344,8 @@ export default function InterviewPage() {
                       clearTranscription();
                     }}
                     className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${inputMode === "text"
-                        ? "bg-white text-violet-700 shadow-sm"
-                        : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
+                      ? "bg-white text-violet-700 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
                       }`}
                   >
                     <PencilSquareIcon className="w-5 h-5" /> Văn bản
