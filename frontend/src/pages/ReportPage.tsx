@@ -46,8 +46,53 @@ interface ReportData {
     sample_answer?: string;
     candidate_answer?: string | null;
     answer_duration_ms?: number;
+    is_follow_up?: boolean;
+    parent_question_id?: string | null;
   }>;
 }
+
+interface HierarchicalEvaluation {
+  flatIndex: number;
+  evaluation: any;
+  subQuestions: Array<{ flatIndex: number; evaluation: any }>;
+}
+
+const buildHierarchy = (evals: any[]): HierarchicalEvaluation[] => {
+  const list: HierarchicalEvaluation[] = [];
+  const map: Record<string, HierarchicalEvaluation> = {};
+
+  evals.forEach((ev, index) => {
+    if (!ev.is_follow_up) {
+      const item: HierarchicalEvaluation = {
+        flatIndex: index,
+        evaluation: ev,
+        subQuestions: [],
+      };
+      list.push(item);
+      if (ev.question_id) {
+        map[ev.question_id] = item;
+      }
+    } else {
+      const parentId = ev.parent_question_id;
+      const parent = parentId ? map[parentId] : null;
+      if (parent) {
+        parent.subQuestions.push({
+          flatIndex: index,
+          evaluation: ev,
+        });
+      } else {
+        const item: HierarchicalEvaluation = {
+          flatIndex: index,
+          evaluation: ev,
+          subQuestions: [],
+        };
+        list.push(item);
+      }
+    }
+  });
+
+  return list;
+};
 
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
@@ -67,6 +112,7 @@ export default function ReportPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedQuestionIndex, setSelectedQuestionIndex] = useState(0);
+  const [expandedParents, setExpandedParents] = useState<Record<string, boolean>>({});
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [outerRadius, setOuterRadius] = useState('70%');
   const [messages, setMessages] = useState<any[]>([]);
@@ -232,6 +278,19 @@ export default function ReportPage() {
       })
       .catch((err) => console.error("Không thể lấy tin nhắn: ", err));
   }, [sessionId, accessToken]);
+
+  useEffect(() => {
+    if (report?.evaluations) {
+      const activeEv = report.evaluations[selectedQuestionIndex];
+      if (activeEv) {
+        if (activeEv.is_follow_up && activeEv.parent_question_id) {
+          setExpandedParents(prev => ({ ...prev, [activeEv.parent_question_id!]: true }));
+        } else if (activeEv.question_id) {
+          setExpandedParents(prev => ({ ...prev, [activeEv.question_id!]: true }));
+        }
+      }
+    }
+  }, [selectedQuestionIndex, report]);
 
   if (loading) {
     return (
@@ -480,32 +539,123 @@ export default function ReportPage() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 items-start mt-4">
               {/* Left Column (25%): Questions List */}
               <div className="md:col-span-1 flex flex-col gap-2 max-h-[600px] overflow-y-auto pr-1 pb-2" style={{ scrollbarWidth: "thin", scrollbarColor: "#cbd5e1 transparent" }}>
-                {(report?.evaluations || []).map((ev, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setSelectedQuestionIndex(i)}
-                    className={`w-full text-left p-3.5 rounded-xl border transition-all duration-200 flex flex-col gap-1.5 hover:-translate-y-0.5 ${selectedQuestionIndex === i
-                        ? 'bg-violet-50 border-violet-200 shadow-[0_4px_15px_rgba(124,58,237,0.08)] ring-1 ring-violet-500/10'
-                        : 'bg-white border-slate-100 hover:border-violet-100 hover:bg-slate-50 hover:shadow-sm'
-                      }`}
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <div className={`font-bold text-sm flex items-center gap-2 ${selectedQuestionIndex === i ? 'text-violet-700' : 'text-slate-700'}`}>
-                        {selectedQuestionIndex === i && (
-                          <motion.div layoutId="questionDot" className="w-1.5 h-1.5 rounded-full bg-violet-600" />
-                        )}
-                        Câu {i + 1}
-                      </div>
-                      <span
-                        className={`text-sm font-black bg-white px-2.5 py-0.5 rounded-md shadow-sm border border-slate-100 ${(ev.score_overall || 0) >= 8 ? 'text-emerald-600' : (ev.score_overall || 0) >= 5 ? 'text-amber-500' : 'text-red-500'
+                {(() => {
+                  const hierarchy = buildHierarchy(report?.evaluations || []);
+                  return hierarchy.map((item, mainIdx) => {
+                    const isSelected = selectedQuestionIndex === item.flatIndex;
+                    const hasSubs = item.subQuestions.length > 0;
+                    const parentId = item.evaluation.question_id || "";
+                    const isExpanded = !!expandedParents[parentId];
+
+                    return (
+                      <div key={mainIdx} className="space-y-1.5 mb-2">
+                        {/* Main Question Card */}
+                        <div
+                          className={`w-full p-3 rounded-xl border transition-all duration-200 flex flex-col gap-1.5 relative ${
+                            isSelected
+                              ? 'bg-violet-50 border-violet-200 shadow-[0_4px_15px_rgba(124,58,237,0.08)] ring-1 ring-violet-500/10'
+                              : 'bg-white border-slate-100 hover:border-violet-100 hover:bg-slate-50'
                           }`}
-                      >
-                        {(ev.score_overall || 0).toFixed(1)}
-                      </span>
-                    </div>
-                    <span className="text-xs text-slate-500 font-medium line-clamp-1">{ev.category}</span>
-                  </button>
-                ))}
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <button
+                              onClick={() => setSelectedQuestionIndex(item.flatIndex)}
+                              className="flex-1 text-left flex items-center gap-2"
+                            >
+                              {isSelected && (
+                                <motion.div layoutId="questionDot" className="w-1.5 h-1.5 rounded-full bg-violet-600 shrink-0" />
+                              )}
+                              <span className={`font-bold text-sm ${isSelected ? 'text-violet-700' : 'text-slate-700'}`}>
+                                Câu {mainIdx + 1}
+                              </span>
+                            </button>
+                            
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`text-xs font-black bg-white px-2 py-0.5 rounded-md shadow-sm border border-slate-50 ${
+                                  (item.evaluation.score_overall || 0) >= 8
+                                    ? 'text-emerald-600'
+                                    : (item.evaluation.score_overall || 0) >= 5
+                                    ? 'text-amber-500'
+                                    : 'text-red-500'
+                                }`}
+                              >
+                                {(item.evaluation.score_overall || 0).toFixed(1)}
+                              </span>
+                              {hasSubs && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedParents(prev => ({ ...prev, [parentId]: !prev[parentId] }));
+                                  }}
+                                  className="p-1 hover:bg-slate-100 rounded-md transition-colors text-slate-400 hover:text-slate-600"
+                                >
+                                  <svg
+                                    className={`w-4 h-4 transform transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setSelectedQuestionIndex(item.flatIndex)}
+                            className="text-left text-xs text-slate-500 font-medium line-clamp-1 w-full"
+                          >
+                            {item.evaluation.category}
+                          </button>
+                        </div>
+
+                        {/* Collapsible Sub-questions List */}
+                        {hasSubs && isExpanded && (
+                          <div className="pl-3 border-l-2 border-violet-100 ml-3 space-y-1.5 transition-all">
+                            {item.subQuestions.map((sub, subIdx) => {
+                              const isSubSelected = selectedQuestionIndex === sub.flatIndex;
+                              return (
+                                <button
+                                  key={subIdx}
+                                  onClick={() => setSelectedQuestionIndex(sub.flatIndex)}
+                                  className={`w-full text-left p-2.5 rounded-xl border transition-all duration-200 flex flex-col gap-1 ${
+                                    isSubSelected
+                                      ? 'bg-violet-50/80 border-violet-200 shadow-sm ring-1 ring-violet-500/5'
+                                      : 'bg-white border-slate-50 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between w-full">
+                                    <div className="flex items-center gap-1.5">
+                                      {isSubSelected && (
+                                        <div className="w-1 h-1 rounded-full bg-violet-500 shrink-0" />
+                                      )}
+                                      <span className={`font-semibold text-xs ${isSubSelected ? 'text-violet-600' : 'text-slate-600'}`}>
+                                        Câu {mainIdx + 1}.{subIdx + 1} (Hỏi phụ)
+                                      </span>
+                                    </div>
+                                    <span
+                                      className={`text-[10px] font-black bg-white px-1.5 py-0.5 rounded shadow-sm border border-slate-50 ${
+                                        (sub.evaluation.score_overall || 0) >= 8
+                                          ? 'text-emerald-600'
+                                          : (sub.evaluation.score_overall || 0) >= 5
+                                          ? 'text-amber-500'
+                                          : 'text-red-500'
+                                      }`}
+                                    >
+                                      {(sub.evaluation.score_overall || 0).toFixed(1)}
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] text-slate-400 line-clamp-1">{sub.evaluation.category}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
               </div>
 
               {/* Right Column (75%): Selected Question Details */}
@@ -537,7 +687,7 @@ export default function ReportPage() {
                                 {selectedQuestionIndex + 1}
                               </span>
                               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 shadow-sm">
-                                {ev.category}
+                                {ev.category} {ev.is_follow_up ? "• Câu hỏi phụ" : ""}
                               </span>
                             </div>
                             <h3 className="text-lg font-bold text-slate-800 leading-relaxed">{ev.question_text}</h3>

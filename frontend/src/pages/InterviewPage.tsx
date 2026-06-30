@@ -119,7 +119,7 @@ export default function InterviewPage() {
       
       if (sessionTime && sessionTime.durationMs > 0) {
         sessionStorage.setItem(`session_${sessionId}_time`, sessionTime.durationMs.toString());
-        fetch(`${apiUrl}/api/sessions/${sessionId}/timing`, {
+        fetch(`${apiUrl}/sessions/${sessionId}/timing`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -133,7 +133,7 @@ export default function InterviewPage() {
       const qTime = getCurrentQuestionTime();
       if (qTime && qTime.questionId && qTime.durationMs > 0) {
         sessionStorage.setItem(`question_${qTime.questionId}_time`, qTime.durationMs.toString());
-        fetch(`${apiUrl}/api/sessions/${sessionId}/questions/${qTime.questionId}/timing`, {
+        fetch(`${apiUrl}/sessions/${sessionId}/questions/${qTime.questionId}/timing`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',

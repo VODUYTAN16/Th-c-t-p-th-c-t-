@@ -116,16 +116,34 @@ export default function UploadPage() {
         accessToken
       );
 
-      if (session.status === "failed") {
-        throw new Error(session.error_message || "Phân tích CV thất bại");
+      let currentSession = session;
+      const maxAttempts = 30; // Max 60 seconds of polling
+      let attempts = 0;
+
+      while (
+        currentSession.status !== "ready" &&
+        currentSession.status !== "failed" &&
+        attempts < maxAttempts
+      ) {
+        attempts++;
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        currentSession = await apiFetch<Session>(
+          `/sessions/${currentSession.id}`,
+          {},
+          accessToken
+        );
       }
-      if (session.status !== "ready") {
-        throw new Error(`Phiên chưa sẵn sàng (trạng thái: ${session.status})`);
+
+      if (currentSession.status === "failed") {
+        throw new Error(currentSession.error_message || "Phân tích CV thất bại");
+      }
+      if (currentSession.status !== "ready") {
+        throw new Error("Quá thời gian chờ phân tích CV. Vui lòng kiểm tra lại trang Lịch sử.");
       }
 
       setLoadingStep("done");
       setTimeout(() => {
-        navigate(`/interview/${session.id}`);
+        navigate(`/interview/${currentSession.id}`);
       }, 500);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Có lỗi xảy ra");

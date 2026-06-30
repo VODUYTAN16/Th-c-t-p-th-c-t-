@@ -22,7 +22,11 @@ async def get_report(session_id: str, user: Annotated[dict, Depends(get_current_
         raise HTTPException(status_code=404, detail="Report not ready yet")
 
     evaluations = db.list_evaluations(session_id)
-    evaluations.sort(key=lambda e: (e.get("questions") or {}).get("order_index", 999))
+    # Sort evaluations by order_index, then by created_at to ensure proper interview order
+    evaluations.sort(key=lambda e: (
+        (e.get("questions") or {}).get("order_index", 999),
+        (e.get("questions") or {}).get("created_at", "")
+    ))
 
     pdf_url = None
     if report.get("pdf_path") and report.get("pdf_bucket"):
@@ -53,8 +57,10 @@ async def get_report(session_id: str, user: Annotated[dict, Depends(get_current_
                 "question_id": e["question_id"],
                 "question_text": (e.get("questions") or {}).get("question_text", ""),
                 "answer_duration_ms": (e.get("questions") or {}).get("answer_duration_ms"),
-                "candidate_answer": next((m["content"] for m in all_messages if m["role"] == "candidate" and m["question_id"] == e["question_id"]), None),
+                "candidate_answer": " \n".join([m["content"] for m in all_messages if m["role"] == "candidate" and m["question_id"] == e["question_id"]]) or None,
                 "category": (e.get("questions") or {}).get("category", ""),
+                "is_follow_up": (e.get("questions") or {}).get("is_follow_up", False),
+                "parent_question_id": (e.get("questions") or {}).get("parent_question_id"),
                 "score_content": float(e["score_content"]),
                 "score_relevance": float(e["score_relevance"]),
                 "score_completeness": float(e["score_completeness"]),

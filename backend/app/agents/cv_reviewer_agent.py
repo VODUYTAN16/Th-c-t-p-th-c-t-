@@ -54,10 +54,10 @@ async def review_cv(
 {cv_text[:6000]}
 
 JD TEXT:
-{jd_text[:4000] if jd_text else "Khong co JD (No JD specified)"}
+{jd_text[:4000] if jd_text else "No JD specified"}
 
-Vi tri ung tuyen (Target Position): {position}
-Nganh (Industry): {industry or "Khong xac dinh"}
+Target Position: {position}
+Industry: {industry or "Not specified"}
 """
 
     try:

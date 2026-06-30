@@ -70,6 +70,7 @@ async def list_sessions(user: Annotated[dict, Depends(get_current_user)]):
 @router.post("", response_model=SessionResponse)
 async def create_session(
     body: CreateSessionRequest,
+    background_tasks: BackgroundTasks,
     user: Annotated[dict, Depends(get_current_user)],
 ):
     cv_doc = db.get_document(body.cv_document_id, user["sub"])
@@ -93,22 +94,10 @@ async def create_session(
         }
     )
 
-    # Chay pipeline dong bo: cho parse CV + tao cau hoi xong roi moi tra ve.
-    # Frontend chi can goi 1 lan, khong polling.
-    try:
-        await run_document_pipeline(session["id"])
-    except Exception as exc:
-        # Pipeline da tu cap nhat status=failed + error_message trong DB.
-        # Log ra day de de debug, khong raise lai tranh 500 cho client.
-        logger.error(
-            "Pipeline failed for session %s: %s",
-            session["id"],
-            exc,
-            exc_info=True,
-        )
+    # Chạy pipeline bất đồng bộ qua background tasks để tránh nghẽn luồng HTTP
+    background_tasks.add_task(run_document_pipeline, session["id"])
 
-    updated = db.get_session(session["id"], user["sub"]) or session
-    return _session_to_response(updated)
+    return _session_to_response(session)
 
 
 @router.get("/{session_id}", response_model=SessionResponse)

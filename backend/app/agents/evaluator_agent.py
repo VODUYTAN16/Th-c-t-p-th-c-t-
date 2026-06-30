@@ -61,7 +61,10 @@ async def evaluate_session(session_id: str) -> dict[str, Any]:
     if not session:
         raise ValueError("Session not found")
 
-    main_questions = db.list_questions(session_id, main_only=True)
+    all_questions = db.list_questions(session_id)
+    # Sort all questions by order_index, then by created_at to preserve order in report
+    all_questions.sort(key=lambda q: (q.get("order_index") or 0, q.get("created_at") or ""))
+
     candidate_messages = db.list_messages(session_id, role="candidate")
 
     answers_by_question: dict[str, str] = {}
@@ -76,29 +79,32 @@ async def evaluate_session(session_id: str) -> dict[str, Any]:
     evaluations = []
     total_scores = {"content": 0.0, "relevance": 0.0, "completeness": 0.0, "presentation": 0.0}
 
-    for question in main_questions:
-        answer = answers_by_question.get(question["id"], "")
+    for question in all_questions:
+        answer = answers_by_question.get(question["id"], "").strip()
         if not answer:
-            answer = "(Ung vien khong tra loi hoac khong ghi nhan duoc)"
+            answer = "(Ứng viên không trả lời câu hỏi này)"
 
-        prompt = f"""Cau hoi ({question['category']}): {question['question_text']}
-Cau tra loi: {answer}
-Vi tri: {session['position_applied']}
+        source_context = question.get("source_context") or {}
+        grading_criteria = source_context.get("grading_criteria") or "N/A"
+
+        prompt = f"""Question ({question['category']}): {question['question_text']}
+Expected grading criteria: {grading_criteria}
+Candidate answer: {answer}
+Target position: {session['position_applied']}
 """
         try:
             data, _ = await llm_router.generate_json(prompt, system)
             ev = AnswerEvaluationData.model_validate(data)
         except Exception:
-            # LLM tra JSON sai -> cham diem 0, ghi nhan can xem lai
             ev = AnswerEvaluationData(
-                score_content=0,
-                score_relevance=0,
-                score_completeness=0,
-                score_presentation=0,
+                score_content=0.0,
+                score_relevance=0.0,
+                score_completeness=0.0,
+                score_presentation=0.0,
                 strengths=[],
                 weaknesses=["Khong danh gia duoc cau tra loi"],
                 feedback="He thong khong tao duoc danh gia cho cau nay.",
-                sample_answer="",
+                sample_answer="N/A",
             )
         overall = _weighted_overall(
             {
@@ -130,7 +136,7 @@ Vi tri: {session['position_applied']}
         total_scores["presentation"] += ev.score_presentation
         evaluations.append({"question": question, "evaluation": record, "ev_data": ev})
 
-    n = max(len(main_questions), 1)
+    n = max(len(all_questions), 1)
     averages = {k: round(v / n, 2) for k, v in total_scores.items()}
     overall_score = round(_weighted_overall(averages), 2)
 
@@ -157,16 +163,16 @@ Vi tri: {session['position_applied']}
             "feedback": e["evaluation"]["feedback"]
         })
 
-    summary_prompt = f"""Chi tiết buổi phỏng vấn:
+    summary_prompt = f"""Interview details:
 {json.dumps(interview_details, ensure_ascii=False)}
 
-Dữ liệu CV hiện tại của ứng viên:
+Candidate's CV data:
 {json.dumps(profile_data, ensure_ascii=False)}
 
-Vị trí ứng tuyển: {session.get('position_applied')}
-Lĩnh vực: {session.get('industry', 'Khong xac dinh')}
-Điểm trung bình: {overall_score}/10
-Điểm trung bình từng tiêu chí: {json.dumps(averages)}
+Target position: {session.get('position_applied')}
+Industry: {session.get('industry', 'Not specified')}
+Average score: {overall_score}/10
+Criterion average scores: {json.dumps(averages)}
 """
     summarizer_system_template = _load_prompt("summarizer.txt")
     summarizer_system = summarizer_system_template.format(language=session.get("language", "vi"))

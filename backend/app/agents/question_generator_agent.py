@@ -23,7 +23,7 @@ async def generate_questions(
     template = _load_prompt("question_generator.txt")
     system = template.format(language=language, position=position, industry=industry or "")
 
-    user_prompt = f"""Ho so ung vien:
+    user_prompt = f"""Candidate Profile:
 {json.dumps(profile, ensure_ascii=False)[:6000]}
 """
 
