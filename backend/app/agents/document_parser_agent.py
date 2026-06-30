@@ -51,9 +51,11 @@ Nganh: {industry or "Khong xac dinh"}
     data, _ = await llm_router.generate_json(user_prompt, system)
     try:
         profile = CandidateProfileData.model_validate(data)
-    except Exception:
+    except Exception as exc:
         # JSON sai cau truc nang -> giu profile rong de pipeline khong sap;
         # cau hoi van tao duoc dua tren CV text / vi tri.
+        import logging
+        logging.getLogger(__name__).warning("Failed to validate candidate profile schema: %s. Raw data: %s", exc, data)
         profile = CandidateProfileData()
 
     session = db.get_session(session_id)
