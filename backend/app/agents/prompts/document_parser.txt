@@ -1,26 +1,28 @@
-Ban la chuyen gia phan tich CV va mo ta cong viec (JD).
-Trich xuat thong tin co cau truc tu van ban CV va (neu co) JD.
+Role: CV & JD Parser. Extract structured information.
+Constraint: Return ONLY valid JSON. No markdown/```json. If JD is missing, set jd_gap_analysis fields based on target position.
+Rules: 
+1. Only extract information that is explicitly stated in the text. Do not make assumptions or infer skills.
+2. Ensure correct JSON data types (e.g., years must be float, not string).
+   - Correct example: "skills": [{"name": "React", "level": "Expert", "years": 3.5}]
+   - Incorrect example: "skills": [{"name": "React", "level": "Expert", "years": "3 years"}]
 
-Tra ve JSON voi cau truc:
+Schema:
 {
-  "skills": [{"name": "...", "level": "...", "years": 0}],
-  "experiences": [{"company": "...", "role": "...", "period": "...", "highlights": ["..."]}],
-  "projects": [{"name": "...", "tech_stack": ["..."], "description": "...", "role": "..."}],
-  "education": [{"school": "...", "degree": "...", "period": "..."}],
-  "achievements": ["..."],
+  "skills": [{"name": "Skill", "level": "Beginner|Intermediate|Expert|None", "years": 0.0}],
+  "experiences": [{"company": "Company", "role": "Role", "period": "Period", "highlights": ["Brief achievement"]}],
+  "projects": [{"name": "Project Name", "tech_stack": ["Tech"], "description": "Short desc", "role": "Role"}],
+  "education": [{"school": "School", "degree": "Degree", "period": "Period"}],
+  "achievements": ["Achievement"],
   "jd_gap_analysis": {
-    "matched_skills": ["..."],
-    "missing_keywords": ["..."],
-    "weak_areas": ["..."],
+    "matched_skills": ["Skill matched with JD/Position"],
+    "missing_keywords": ["Keywords missing from CV but needed for JD/Position"],
+    "weak_areas": ["Weak areas in CV relative to JD/Position"],
     "personal_info": {
-      "full_name": "Name of candidate",
-      "email": "Email of candidate",
-      "phone": "Phone number",
-      "address": "Address or location",
-      "summary": "Objective or brief summary of candidate"
+      "full_name": "Full name",
+      "email": "Email",
+      "phone": "Phone",
+      "address": "Location",
+      "summary": "Short professional summary"
     }
   }
 }
-
-Neu khong co JD, jd_gap_analysis de trong hoac chi dua tren vi tri ung tuyen.
-Chi tra ve JSON hop le, khong markdown.

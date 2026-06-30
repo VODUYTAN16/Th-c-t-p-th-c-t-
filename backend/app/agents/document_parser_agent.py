@@ -38,14 +38,14 @@ async def parse_documents(
     jd_text = _safe_text(jd_text) if jd_text else None
 
     system = _load_prompt("document_parser.txt")
-    user_prompt = f"""CV:
+    user_prompt = f"""CV TEXT:
 {cv_text[:4000]}
 
-JD:
-{jd_text[:4000] if jd_text else "Khong co JD"}
+JD TEXT:
+{jd_text[:4000] if jd_text else "No JD specified"}
 
-Vi tri ung tuyen: {position}
-Nganh: {industry or "Khong xac dinh"}
+Target Position: {position}
+Industry: {industry or "Not specified"}
 """
 
     data, _ = await llm_router.generate_json(user_prompt, system)
