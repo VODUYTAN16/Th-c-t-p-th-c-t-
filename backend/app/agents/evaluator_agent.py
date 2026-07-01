@@ -81,12 +81,9 @@ async def evaluate_session(session_id: str) -> dict[str, Any]:
         if qid:
             answers_by_question[qid] = msg["content"]
 
-    # Chế độ hội đồng: Lead có thể bỏ qua một số câu trong kho -> chỉ chấm những
-    # câu ĐÃ được hỏi (có câu trả lời), tránh kéo điểm xuống vì câu chưa dùng.
-    if get_settings().panel_enabled:
-        answered = [q for q in all_questions if q["id"] in answers_by_question]
-        if answered:
-            all_questions = answered
+    # Chấm TẤT CẢ câu (câu chưa trả lời vẫn được sinh sample_answer để tham khảo),
+    # nhưng điểm trung bình chỉ tính trên câu ĐÃ trả lời (xem vòng cộng dồn phía
+    # dưới) để câu chưa hỏi không kéo điểm xuống.
 
     system_template = _load_prompt("evaluator.txt")
     system = system_template.format(language=session.get("language", "vi"))
@@ -132,6 +129,7 @@ Target position: {session['position_applied']}
     )
 
     # Ghi DB + cộng dồn điểm tuần tự (theo đúng thứ tự câu hỏi).
+    answered_count = 0
     for question, ev in zip(all_questions, ev_results):
         overall = _weighted_overall(
             {
@@ -157,13 +155,16 @@ Target position: {session['position_applied']}
                 "sample_answer": ev.sample_answer,
             },
         )
-        total_scores["content"] += ev.score_content
-        total_scores["relevance"] += ev.score_relevance
-        total_scores["completeness"] += ev.score_completeness
-        total_scores["presentation"] += ev.score_presentation
+        # Chỉ cộng vào điểm trung bình nếu ứng viên THỰC SỰ trả lời câu này.
+        if question["id"] in answers_by_question:
+            total_scores["content"] += ev.score_content
+            total_scores["relevance"] += ev.score_relevance
+            total_scores["completeness"] += ev.score_completeness
+            total_scores["presentation"] += ev.score_presentation
+            answered_count += 1
         evaluations.append({"question": question, "evaluation": record, "ev_data": ev})
 
-    n = max(len(all_questions), 1)
+    n = max(answered_count, 1)
     averages = {k: round(v / n, 2) for k, v in total_scores.items()}
     overall_score = round(_weighted_overall(averages), 2)
 
@@ -289,6 +290,7 @@ Criterion average scores: {json.dumps(averages)}
 
     report_summary = _build_report_summary(summary_data, overall_score, suggestions)
 
+    # Chỉ đưa câu ĐÃ trả lời vào phần chấm điểm của PDF.
     eval_list_for_pdf = [
         {
             "question_text": e["question"]["question_text"],
@@ -296,6 +298,18 @@ Criterion average scores: {json.dumps(averages)}
             "feedback": e["evaluation"]["feedback"],
         }
         for e in evaluations
+        if e["question"]["id"] in answers_by_question
+    ]
+    # Câu CHÍNH chưa trả lời -> mục tham khảo (câu hỏi + đáp án mẫu), không tính điểm.
+    reference_list = [
+        {
+            "question_text": e["question"]["question_text"],
+            "category": e["question"].get("category", ""),
+            "sample_answer": e["ev_data"].sample_answer,
+        }
+        for e in evaluations
+        if e["question"]["id"] not in answers_by_question
+        and not e["question"].get("is_follow_up")
     ]
     # Tao + upload PDF: neu loi van luu report (web) de khong sap pipeline
     pdf_bucket: str | None = None
@@ -309,6 +323,7 @@ Criterion average scores: {json.dumps(averages)}
             report_summary.summary,
             eval_list_for_pdf,
             [s.model_dump() for s in report_summary.cv_suggestions],
+            reference_questions=reference_list,
         )
         candidate_path = f"{session['user_id']}/{session_id}/report.pdf"
         storage_service.upload_file("reports", candidate_path, pdf_bytes, "application/pdf")

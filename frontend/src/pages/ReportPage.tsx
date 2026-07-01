@@ -49,6 +49,12 @@ interface ReportData {
     is_follow_up?: boolean;
     parent_question_id?: string | null;
   }>;
+  reference_questions?: Array<{
+    question_id?: string;
+    category?: string;
+    question_text: string;
+    sample_answer?: string | null;
+  }>;
 }
 
 interface HierarchicalEvaluation {
@@ -787,6 +793,47 @@ export default function ReportPage() {
               </div>
             </div>
           </motion.div>
+
+          {/* Câu hỏi chưa phỏng vấn — hiển thị để tham khảo, không tính điểm */}
+          {report?.reference_questions && report.reference_questions.length > 0 && (
+            <motion.div
+              variants={itemVariants}
+              className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-slate-400 to-slate-500"></div>
+              <h2 className="text-xl font-extrabold text-slate-800 mb-1 flex items-center gap-2">
+                <ChatBubbleLeftRightIcon className="w-6 h-6 text-slate-400 stroke-[2.5]" />
+                Câu hỏi tham khảo (chưa phỏng vấn)
+              </h2>
+              <p className="text-sm text-slate-500 mb-4 font-medium">
+                Các câu chưa được hỏi — không tính vào điểm, kèm câu trả lời mẫu để bạn tham khảo.
+              </p>
+              <div className="space-y-3">
+                {report.reference_questions.map((rq, i) => (
+                  <details
+                    key={rq.question_id || i}
+                    className="group bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden"
+                  >
+                    <summary className="cursor-pointer select-none px-5 py-4 font-semibold text-slate-800 flex items-start gap-2 hover:bg-slate-100/70 transition-colors">
+                      <span className="text-slate-400 shrink-0">{i + 1}.</span>
+                      <span>{rq.question_text}</span>
+                    </summary>
+                    {rq.sample_answer && (
+                      <div className="px-5 pb-5">
+                        <strong className="flex items-center gap-1.5 text-emerald-800 mb-2 font-bold text-sm">
+                          <CheckCircleIcon className="w-4 h-4 stroke-[2.5]" />
+                          Câu trả lời mẫu
+                        </strong>
+                        <div className="text-slate-700 font-medium leading-relaxed bg-white p-4 rounded-xl border border-emerald-50 whitespace-pre-wrap">
+                          {rq.sample_answer}
+                        </div>
+                      </div>
+                    )}
+                  </details>
+                ))}
+              </div>
+            </motion.div>
+          )}
         </motion.div>
       )}
     </div>

@@ -42,25 +42,38 @@ async def get_report(session_id: str, user: Annotated[dict, Depends(get_current_
 
     all_messages = db.list_messages(session_id)
 
-    return ReportResponse(
-        session_id=session_id,
-        total_duration_ms=session.get("total_duration_ms"),
-        overall_score=float(report["overall_score"]),
-        avg_content=float(report["avg_content"]),
-        avg_relevance=float(report["avg_relevance"]),
-        avg_completeness=float(report["avg_completeness"]),
-        avg_presentation=float(report["avg_presentation"]),
-        summary=report["summary"],
-        cv_suggestions=cv_suggestions if isinstance(cv_suggestions, list) else [],
-        evaluations=[
+    # Tách câu ĐÃ trả lời (chấm điểm) và câu CHƯA phỏng vấn (tham khảo, không điểm).
+    scored: list[dict] = []
+    reference_questions: list[dict] = []
+    for e in evaluations:
+        q = e.get("questions") or {}
+        candidate_answer = " \n".join(
+            m["content"]
+            for m in all_messages
+            if m["role"] == "candidate" and m["question_id"] == e["question_id"]
+        ) or None
+
+        if candidate_answer is None and not q.get("is_follow_up", False):
+            # Câu chính chưa được hỏi -> chỉ hiển thị câu hỏi + đáp án mẫu để tham khảo.
+            reference_questions.append(
+                {
+                    "question_id": e["question_id"],
+                    "question_text": q.get("question_text", ""),
+                    "category": q.get("category", ""),
+                    "sample_answer": e.get("sample_answer"),
+                }
+            )
+            continue
+
+        scored.append(
             {
                 "question_id": e["question_id"],
-                "question_text": (e.get("questions") or {}).get("question_text", ""),
-                "answer_duration_ms": (e.get("questions") or {}).get("answer_duration_ms"),
-                "candidate_answer": " \n".join([m["content"] for m in all_messages if m["role"] == "candidate" and m["question_id"] == e["question_id"]]) or None,
-                "category": (e.get("questions") or {}).get("category", ""),
-                "is_follow_up": (e.get("questions") or {}).get("is_follow_up", False),
-                "parent_question_id": (e.get("questions") or {}).get("parent_question_id"),
+                "question_text": q.get("question_text", ""),
+                "answer_duration_ms": q.get("answer_duration_ms"),
+                "candidate_answer": candidate_answer,
+                "category": q.get("category", ""),
+                "is_follow_up": q.get("is_follow_up", False),
+                "parent_question_id": q.get("parent_question_id"),
                 "score_content": float(e["score_content"]),
                 "score_relevance": float(e["score_relevance"]),
                 "score_completeness": float(e["score_completeness"]),
@@ -71,8 +84,20 @@ async def get_report(session_id: str, user: Annotated[dict, Depends(get_current_
                 "strengths": e.get("strengths", []),
                 "weaknesses": e.get("weaknesses", []),
             }
-            for e in evaluations
-        ],
+        )
+
+    return ReportResponse(
+        session_id=session_id,
+        total_duration_ms=session.get("total_duration_ms"),
+        overall_score=float(report["overall_score"]),
+        avg_content=float(report["avg_content"]),
+        avg_relevance=float(report["avg_relevance"]),
+        avg_completeness=float(report["avg_completeness"]),
+        avg_presentation=float(report["avg_presentation"]),
+        summary=report["summary"],
+        cv_suggestions=cv_suggestions if isinstance(cv_suggestions, list) else [],
+        evaluations=scored,
+        reference_questions=reference_questions,
         pdf_url=pdf_url,
         jd_gap_analysis=jd_gap_analysis,
     )

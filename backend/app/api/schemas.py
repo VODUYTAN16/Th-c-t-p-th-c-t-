@@ -67,5 +67,6 @@ class ReportResponse(BaseModel):
     summary: str
     cv_suggestions: list
     evaluations: list = Field(default_factory=list)
+    reference_questions: list = Field(default_factory=list)
     pdf_url: str | None = None
     jd_gap_analysis: dict | None = None

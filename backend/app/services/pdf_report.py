@@ -72,6 +72,7 @@ def generate_report_pdf(
     summary: str,
     evaluations: list[dict[str, Any]],
     cv_suggestions: list[dict[str, Any]],
+    reference_questions: list[dict[str, Any]] | None = None,
 ) -> bytes:
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -109,6 +110,21 @@ def generate_report_pdf(
         _mcell(pdf, 5, f"   Diem: {ev.get('score_overall', 0):.1f}/10")
         _mcell(pdf, 5, f"   Nhan xet: {_sanitize(ev.get('feedback', ''))[:300]}")
         pdf.ln(2)
+
+    # Cau hoi chua phong van -> hien thi de tham khao, khong tinh diem.
+    if reference_questions:
+        pdf.ln(2)
+        pdf.set_font(FONT_FAMILY, "B", 12)
+        _mcell(pdf, 8, "Cau hoi tham khao (chua phong van - khong tinh diem)")
+        for i, ref in enumerate(reference_questions, 1):
+            pdf.set_font(FONT_FAMILY, "B", 10)
+            q_text = _sanitize(ref.get("question_text", ""))[:120]
+            _mcell(pdf, 6, f"{i}. {q_text}")
+            sample = _sanitize(ref.get("sample_answer", "") or "")
+            if sample:
+                pdf.set_font(FONT_FAMILY, "", 9)
+                _mcell(pdf, 5, f"   Cau tra loi mau: {sample[:400]}")
+            pdf.ln(2)
 
     pdf.set_font(FONT_FAMILY, "B", 12)
     _mcell(pdf, 8, "Goi y cai thien CV")
