@@ -24,8 +24,22 @@ class Settings(BaseSettings):
 
     groq_api_key: str = ""
     groq_model: str = "llama-3.1-8b-instant"
+    # Model mạnh hơn cho tác vụ nền cần chất lượng cao (sinh câu hỏi, review CV,
+    # parse CV, summarizer). Không dùng cho phần phỏng vấn real-time.
+    groq_quality_model: str = "llama-3.3-70b-versatile"
 
     llm_prefer: str = "auto"  # auto | local | cloud | groq | gemini | ollama
+
+    # Hệ "hội đồng phỏng vấn" đa tác nhân (Lead orchestrator + chuyên gia +
+    # scorekeeper). Tắt = dùng luồng decide_next_action tuyến tính cũ (an toàn).
+    panel_enabled: bool = True
+    # Ngân sách câu hỏi chính tối đa cho một buổi phỏng vấn do Lead điều phối.
+    panel_max_questions: int = 12
+    # Cho phép sinh câu hỏi ĐỘNG ngoài kho (chủ đề nổi lên). Tắt = chỉ tinh chỉnh
+    # trong kho đã QA.
+    panel_allow_generate: bool = True
+    # Số mục tiêu 'emergent' (sinh động) tối đa được thêm trong một buổi.
+    panel_max_emergent_goals: int = 3
 
     whisper_model: str = "small"
     whisper_device: str = "cpu"
