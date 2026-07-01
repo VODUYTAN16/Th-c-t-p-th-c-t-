@@ -11,9 +11,12 @@ from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# Số lần thử lại khi Groq trả 429 (rate limit) và mức chờ tối đa mỗi lần.
+# Số lần thử lại khi Groq/OpenRouter trả 429 (rate limit) và mức chờ tối đa mỗi lần.
 _GROQ_MAX_RETRIES = 2
 _GROQ_MAX_BACKOFF_S = 8.0
+
+# Endpoint OpenRouter (API tương thích OpenAI).
+_OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
 def _parse_retry_delay(message: str) -> float:
@@ -153,6 +156,76 @@ class LLMRouter:
         response = await model.generate_content_async(prompt)
         return response.text
 
+    def _openrouter_model(self, requested: str | None) -> str:
+        """Ánh xạ 'tier' sang model OpenRouter: caller yêu cầu model quality của
+        Groq -> dùng model quality của OpenRouter; ngược lại -> model nhanh."""
+        if requested and requested == self.settings.groq_quality_model:
+            return self.settings.openrouter_quality_model
+        return self.settings.openrouter_model
+
+    async def _call_openrouter(
+        self,
+        prompt: str,
+        system: str = "",
+        json_mode: bool = False,
+        max_tokens: int = 1500,
+        model: str | None = None,
+    ) -> str:
+        """Call OpenRouter (dự phòng khi Groq hết token). API tương thích OpenAI,
+        gọi trực tiếp bằng httpx. `model` (id của Groq) được ánh xạ sang model
+        OpenRouter đúng tier để không phải sửa caller."""
+        if not self.settings.openrouter_api_key:
+            raise RuntimeError("OPENROUTER_API_KEY is not configured")
+
+        or_model = self._openrouter_model(model)
+        messages: list[dict[str, str]] = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+
+        payload: dict = {
+            "model": or_model,
+            "messages": messages,
+            "temperature": 0.7,
+            "max_tokens": max_tokens,
+        }
+        if json_mode:
+            payload["response_format"] = {"type": "json_object"}
+
+        headers = {
+            "Authorization": f"Bearer {self.settings.openrouter_api_key}",
+            "Content-Type": "application/json",
+            # Tùy chọn, giúp OpenRouter xếp hạng app (không bắt buộc).
+            "HTTP-Referer": self.settings.frontend_url,
+            "X-Title": "AI Interview Assistant",
+        }
+
+        last_exc: Exception | None = None
+        for attempt in range(_GROQ_MAX_RETRIES + 1):
+            try:
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    resp = await client.post(_OPENROUTER_URL, json=payload, headers=headers)
+                    if resp.status_code == 429 and attempt < _GROQ_MAX_RETRIES:
+                        delay = _parse_retry_delay(resp.text)
+                        logger.warning(
+                            "[LLMRouter] OpenRouter 429, chờ %.1fs rồi thử lại (%d/%d)",
+                            delay, attempt + 1, _GROQ_MAX_RETRIES,
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                    resp.raise_for_status()
+                    data = resp.json()
+                    return data["choices"][0]["message"]["content"] or ""
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                if "429" in str(exc) and attempt < _GROQ_MAX_RETRIES:
+                    await asyncio.sleep(_parse_retry_delay(str(exc)))
+                    continue
+                raise
+        if last_exc:
+            raise last_exc
+        return ""
+
     # ── Provider selection ────────────────────────────────────────────────
 
     def _has_groq(self) -> bool:
@@ -161,23 +234,31 @@ class LLMRouter:
     def _has_gemini(self) -> bool:
         return bool(self.settings.gemini_api_key)
 
+    def _has_openrouter(self) -> bool:
+        return bool(self.settings.openrouter_api_key)
+
     async def _build_provider_list(self, prefer: str | None) -> list[str]:
-        """Return ordered provider list based on LLM_PREFER setting."""
+        """Return ordered provider list based on LLM_PREFER setting.
+
+        OpenRouter đặt NGAY SAU Groq làm phương án thay thế đầu tiên khi Groq
+        lỗi/hết quota, rồi mới tới Gemini."""
         mode = prefer or self.settings.llm_prefer
 
         if mode in ("local", "ollama"):
-            return ["ollama", "groq", "gemini"]
+            return ["ollama", "groq", "openrouter", "gemini"]
         if mode == "cloud":
-            return ["groq", "gemini", "ollama"]
+            return ["groq", "openrouter", "gemini", "ollama"]
         if mode == "groq":
-            return ["groq", "gemini", "ollama"]
+            return ["groq", "openrouter", "gemini", "ollama"]
+        if mode == "openrouter":
+            return ["openrouter", "groq", "gemini", "ollama"]
         if mode == "gemini":
-            return ["gemini", "groq", "ollama"]
+            return ["gemini", "groq", "openrouter", "ollama"]
 
         # auto: prefer local if Ollama is available
         if await self._ollama_healthy():
-            return ["ollama", "groq", "gemini"]
-        return ["groq", "gemini", "ollama"]
+            return ["ollama", "groq", "openrouter", "gemini"]
+        return ["groq", "openrouter", "gemini", "ollama"]
 
     # ── Public API ────────────────────────────────────────────────────────
 
@@ -219,6 +300,13 @@ class LLMRouter:
                         continue
                     logger.info("[LLMRouter] Using groq (%s) json_mode=%s", model or self.settings.groq_model, json_mode)
                     result = await self._call_groq(prompt, system, json_mode=json_mode, max_tokens=max_tokens, model=model)
+
+                elif provider == "openrouter":
+                    if not self._has_openrouter():
+                        logger.debug("OpenRouter API key not set, skipping.")
+                        continue
+                    logger.info("[LLMRouter] Using openrouter (%s) json_mode=%s", self._openrouter_model(model), json_mode)
+                    result = await self._call_openrouter(prompt, system, json_mode=json_mode, max_tokens=max_tokens, model=model)
 
                 elif provider == "gemini":
                     if not self._has_gemini():
@@ -317,6 +405,50 @@ class LLMRouter:
                             yield delta
                     return
 
+                if provider == "openrouter":
+                    if not self._has_openrouter():
+                        continue
+                    messages = []
+                    if system:
+                        messages.append({"role": "system", "content": system})
+                    messages.append({"role": "user", "content": prompt})
+
+                    headers = {
+                        "Authorization": f"Bearer {self.settings.openrouter_api_key}",
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": self.settings.frontend_url,
+                        "X-Title": "AI Interview Assistant",
+                    }
+                    payload = {
+                        "model": self.settings.openrouter_model,
+                        "messages": messages,
+                        "temperature": 0.7,
+                        "max_tokens": max_tokens,
+                        "stream": True,
+                    }
+                    logger.info("[LLMRouter] Streaming openrouter (%s)", self.settings.openrouter_model)
+                    async with httpx.AsyncClient(timeout=120.0) as client_http:
+                        async with client_http.stream(
+                            "POST", _OPENROUTER_URL, json=payload, headers=headers
+                        ) as resp:
+                            resp.raise_for_status()
+                            async for line in resp.aiter_lines():
+                                line = line.strip()
+                                if not line or not line.startswith("data:"):
+                                    continue
+                                data_str = line[len("data:"):].strip()
+                                if data_str == "[DONE]":
+                                    break
+                                try:
+                                    obj = json.loads(data_str)
+                                except json.JSONDecodeError:
+                                    continue
+                                choices = obj.get("choices") or [{}]
+                                delta = choices[0].get("delta", {}).get("content")
+                                if delta:
+                                    yield delta
+                    return
+
                 if provider == "ollama":
                     if not await self._ollama_healthy():
                         continue
@@ -378,6 +510,11 @@ class LLMRouter:
             "groq": {
                 "configured": self._has_groq(),
                 "model": self.settings.groq_model,
+            },
+            "openrouter": {
+                "configured": self._has_openrouter(),
+                "model": self.settings.openrouter_model,
+                "quality_model": self.settings.openrouter_quality_model,
             },
             "gemini": {
                 "configured": self._has_gemini(),

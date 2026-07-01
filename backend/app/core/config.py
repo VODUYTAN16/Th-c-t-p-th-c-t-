@@ -28,7 +28,12 @@ class Settings(BaseSettings):
     # parse CV, summarizer). Không dùng cho phần phỏng vấn real-time.
     groq_quality_model: str = "llama-3.3-70b-versatile"
 
-    llm_prefer: str = "auto"  # auto | local | cloud | groq | gemini | ollama
+    # OpenRouter (dự phòng khi Groq hết token free). API tương thích OpenAI.
+    openrouter_api_key: str = ""
+    openrouter_model: str = "meta-llama/llama-3.1-8b-instruct:free"  # tier nhanh
+    openrouter_quality_model: str = "deepseek/deepseek-v3:free"  # tier chất lượng
+
+    llm_prefer: str = "auto"  # auto | local | cloud | groq | openrouter | gemini | ollama
 
     # Hệ "hội đồng phỏng vấn" đa tác nhân (Lead orchestrator + chuyên gia +
     # scorekeeper). Tắt = dùng luồng decide_next_action tuyến tính cũ (an toàn).
