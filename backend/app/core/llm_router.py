@@ -200,30 +200,37 @@ class LLMRouter:
             "X-Title": "AI Interview Assistant",
         }
 
-        last_exc: Exception | None = None
+        tried_without_json = False
         for attempt in range(_GROQ_MAX_RETRIES + 1):
-            try:
-                async with httpx.AsyncClient(timeout=120.0) as client:
-                    resp = await client.post(_OPENROUTER_URL, json=payload, headers=headers)
-                    if resp.status_code == 429 and attempt < _GROQ_MAX_RETRIES:
-                        delay = _parse_retry_delay(resp.text)
-                        logger.warning(
-                            "[LLMRouter] OpenRouter 429, chờ %.1fs rồi thử lại (%d/%d)",
-                            delay, attempt + 1, _GROQ_MAX_RETRIES,
-                        )
-                        await asyncio.sleep(delay)
-                        continue
-                    resp.raise_for_status()
-                    data = resp.json()
-                    return data["choices"][0]["message"]["content"] or ""
-            except Exception as exc:  # noqa: BLE001
-                last_exc = exc
-                if "429" in str(exc) and attempt < _GROQ_MAX_RETRIES:
-                    await asyncio.sleep(_parse_retry_delay(str(exc)))
-                    continue
-                raise
-        if last_exc:
-            raise last_exc
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                resp = await client.post(_OPENROUTER_URL, json=payload, headers=headers)
+
+            if resp.status_code == 429 and attempt < _GROQ_MAX_RETRIES:
+                delay = _parse_retry_delay(resp.text)
+                logger.warning(
+                    "[LLMRouter] OpenRouter 429, chờ %.1fs rồi thử lại (%d/%d)",
+                    delay, attempt + 1, _GROQ_MAX_RETRIES,
+                )
+                await asyncio.sleep(delay)
+                continue
+
+            # Một số model free không hỗ trợ response_format=json_object -> 400.
+            # Thử lại 1 lần không kèm response_format (generate_json vẫn tự sửa JSON).
+            if resp.status_code == 400 and "response_format" in payload and not tried_without_json:
+                logger.warning(
+                    "[LLMRouter] OpenRouter 400 (%s...) — bỏ response_format rồi thử lại",
+                    resp.text[:160],
+                )
+                payload.pop("response_format", None)
+                tried_without_json = True
+                continue
+
+            if resp.status_code >= 400:
+                # Nêu rõ nội dung lỗi (vd model không hợp lệ) để dễ chẩn đoán.
+                raise RuntimeError(f"OpenRouter {resp.status_code} ({or_model}): {resp.text[:300]}")
+
+            data = resp.json()
+            return data["choices"][0]["message"]["content"] or ""
         return ""
 
     # ── Provider selection ────────────────────────────────────────────────

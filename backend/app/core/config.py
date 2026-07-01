@@ -29,9 +29,10 @@ class Settings(BaseSettings):
     groq_quality_model: str = "llama-3.3-70b-versatile"
 
     # OpenRouter (dự phòng khi Groq hết token free). API tương thích OpenAI.
+    # Slug phải khớp danh sách hiện hành tại https://openrouter.ai/models
     openrouter_api_key: str = ""
-    openrouter_model: str = "meta-llama/llama-3.1-8b-instruct:free"  # tier nhanh
-    openrouter_quality_model: str = "deepseek/deepseek-v3:free"  # tier chất lượng
+    openrouter_model: str = "meta-llama/llama-3.3-70b-instruct:free"  # tier nhanh
+    openrouter_quality_model: str = "meta-llama/llama-3.3-70b-instruct:free"  # tier chất lượng
 
     llm_prefer: str = "auto"  # auto | local | cloud | groq | openrouter | gemini | ollama
 
