@@ -17,7 +17,8 @@ export default function AppFooter() {
         {/* Links */}
         <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-[13px]">
           <Link to="/" className="text-slate-500 hover:text-slate-700 transition-colors">Trang chủ</Link>
-          <Link to="/dashboard" className="text-slate-500 hover:text-slate-700 transition-colors">Tạo phiên</Link>
+          <Link to="/dashboard" className="text-slate-500 hover:text-slate-700 transition-colors">Tạo phiên phỏng vấn</Link>
+          <Link to="/optimize-cv" className="text-slate-500 hover:text-slate-700 transition-colors">Tối ưu CV</Link>
           <Link to="/history" className="text-slate-500 hover:text-slate-700 transition-colors">Lịch sử</Link>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { apiFetch, uploadDocument, getDocuments, getDocumentUrl, type Session, type DocumentResponse } from "../lib/api";
 import CVReviewModal from "../components/modals/CVReviewModal";
@@ -8,10 +8,16 @@ import { SparklesIcon } from "@heroicons/react/24/outline";
 export default function UploadPage() {
   const { accessToken } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isOptimizeCV = location.pathname.replace(/\/$/, "") === "/optimize-cv";
 
   const [cvMode, setCvMode] = useState<"upload" | "select">("upload");
   const [savedCVs, setSavedCVs] = useState<DocumentResponse[]>([]);
   const [selectedCVId, setSelectedCVId] = useState<string>("");
+
+  const [jdMode, setJdMode] = useState<"upload" | "select">("upload");
+  const [savedJDs, setSavedJDs] = useState<DocumentResponse[]>([]);
+  const [selectedJDId, setSelectedJDId] = useState<string>("");
 
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [jdFile, setJdFile] = useState<File | null>(null);
@@ -25,6 +31,7 @@ export default function UploadPage() {
   // Modal State
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [previewDocId, setPreviewDocId] = useState<string | null>(null);
+  const [previewDocType, setPreviewDocType] = useState<"cv" | "jd" | null>(null);
   const [previewDocName, setPreviewDocName] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -33,14 +40,18 @@ export default function UploadPage() {
       getDocuments("cv", accessToken)
         .then(docs => setSavedCVs(docs))
         .catch(console.error);
+      getDocuments("jd", accessToken)
+        .then(docs => setSavedJDs(docs))
+        .catch(console.error);
     }
   }, [accessToken]);
 
-  const handlePreview = async (e: React.MouseEvent, docId: string, docName: string) => {
+  const handlePreview = async (e: React.MouseEvent, docId: string, docName: string, type: "cv" | "jd" = "cv") => {
     e.stopPropagation();
     setPreviewDocId(docId);
     setPreviewDocName(docName);
     setPreviewUrl(null);
+    setPreviewDocType(type);
     setPreviewModalOpen(true);
 
     try {
@@ -55,14 +66,15 @@ export default function UploadPage() {
 
   const handleToggleSelectFromModal = () => {
     if (previewDocId) {
-      if (selectedCVId === previewDocId) {
-        setSelectedCVId("");
+      if (previewDocType === "jd") {
+        setSelectedJDId(selectedJDId === previewDocId ? "" : previewDocId);
       } else {
-        setSelectedCVId(previewDocId);
+        setSelectedCVId(selectedCVId === previewDocId ? "" : previewDocId);
       }
     } else {
       // Case when file is uploaded from computer (no ID yet)
-      setCvFile(null);
+      if (previewDocType === "jd") setJdFile(null);
+      else setCvFile(null);
       setPreviewModalOpen(false); // Close modal immediately after deselecting
     }
   };
@@ -94,7 +106,9 @@ export default function UploadPage() {
       }
 
       let jdDocId: string | undefined;
-      if (jdFile) {
+      if (jdMode === "select" && selectedJDId) {
+        jdDocId = selectedJDId;
+      } else if (jdMode === "upload" && jdFile) {
         setLoadingStep("upload_jd");
         const jdDoc = await uploadDocument(jdFile, "jd", accessToken);
         jdDocId = jdDoc.id;
@@ -108,9 +122,10 @@ export default function UploadPage() {
           body: JSON.stringify({
             cv_document_id: finalCvId,
             jd_document_id: jdDocId,
-            position_applied: position,
+            position_applied: isOptimizeCV ? `[CV_OPT] ${position}` : position,
             industry: industry || null,
             language,
+            optimize_only: isOptimizeCV,
           }),
         },
         accessToken
@@ -143,7 +158,11 @@ export default function UploadPage() {
 
       setLoadingStep("done");
       setTimeout(() => {
-        navigate(`/interview/${currentSession.id}`);
+        if (isOptimizeCV) {
+          navigate(`/report/${currentSession.id}/cv-suggestions`);
+        } else {
+          navigate(`/interview/${currentSession.id}`);
+        }
       }, 500);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Có lỗi xảy ra");
@@ -156,9 +175,15 @@ export default function UploadPage() {
     <div className="max-w-6xl mx-auto py-8 px-4">
       <div className="text-center mb-12">
         <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-5">
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600">Tạo Phiên Phỏng Vấn</span>
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600">
+            {isOptimizeCV ? "Tối ưu hồ sơ ứng viên (CV)" : "Tạo Phiên Phỏng Vấn"}
+          </span>
         </h1>
-        <p className="text-slate-500 text-lg max-w-2xl mx-auto font-medium">Thiết lập chi tiết công việc và hồ sơ ứng tuyển của bạn. AI sẽ tự động phân tích và tạo ra các câu hỏi cá nhân hóa chuyên sâu.</p>
+        <p className="text-slate-500 text-lg max-w-2xl mx-auto font-medium">
+          {isOptimizeCV 
+            ? "Tải lên CV và mô tả công việc (JD) để AI phân tích, chỉ ra điểm yếu và đề xuất cách cải thiện hồ sơ của bạn."
+            : "Thiết lập chi tiết công việc và hồ sơ ứng tuyển của bạn. AI sẽ tự động phân tích và tạo ra các câu hỏi cá nhân hóa chuyên sâu."}
+        </p>
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-[2rem] p-6 md:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 relative z-0">
@@ -203,34 +228,96 @@ export default function UploadPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-slate-700">Job Description <span className="text-slate-400 font-normal">(Tùy chọn, PDF/DOCX)</span></label>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-semibold text-slate-700">Job Description <span className="text-slate-400 font-normal">(Tùy chọn)</span></label>
+                    {/* Toggle Switch */}
+                    <div className="flex p-1 bg-slate-100/80 rounded-lg border border-slate-200/60 shadow-inner">
+                      <button
+                        type="button"
+                        onClick={() => setJdMode("upload")}
+                        className={`flex items-center px-3 py-1 rounded-md text-xs font-semibold transition-all duration-200 ${
+                          jdMode === "upload" 
+                            ? "bg-white text-blue-700 shadow-sm border border-slate-200/50" 
+                            : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
+                        }`}
+                      >
+                        Tải lên
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setJdMode("select")}
+                        className={`flex items-center px-3 py-1 rounded-md text-xs font-semibold transition-all duration-200 ${
+                          jdMode === "select" 
+                            ? "bg-white text-blue-700 shadow-sm border border-slate-200/50" 
+                            : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
+                        }`}
+                      >
+                        Từ kho
+                      </button>
+                    </div>
+                  </div>
                   <div className="relative">
-                    {jdFile ? (
-                      <div className="w-full bg-blue-50/50 border border-blue-200 rounded-xl px-4 py-3 flex items-center justify-between shadow-sm animate-in fade-in duration-200">
-                        <div className="flex items-center space-x-3 overflow-hidden">
-                          <svg className="w-6 h-6 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" /></svg>
-                          <span className="text-sm font-medium text-blue-700 truncate">{jdFile.name}</span>
+                    {jdMode === "upload" ? (
+                      jdFile ? (
+                        <div className="w-full bg-blue-50/50 border border-blue-200 rounded-xl px-4 py-3 flex items-center justify-between shadow-sm animate-in fade-in duration-200">
+                          <div className="flex items-center space-x-3 overflow-hidden">
+                            <svg className="w-6 h-6 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" /></svg>
+                            <span className="text-sm font-medium text-blue-700 truncate">{jdFile.name}</span>
+                          </div>
+                          <button 
+                            type="button" 
+                            onClick={() => setJdFile(null)}
+                            className="p-1 hover:bg-blue-100 rounded-md text-blue-400 hover:text-blue-600 transition-colors"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                          </button>
                         </div>
-                        <button 
-                          type="button" 
-                          onClick={() => setJdFile(null)}
-                          className="p-1 hover:bg-blue-100 rounded-md text-blue-400 hover:text-blue-600 transition-colors"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                        </button>
-                      </div>
+                      ) : (
+                        <div className="w-full bg-white border border-slate-200 border-dashed rounded-xl px-4 py-3 hover:bg-slate-50 transition-colors relative cursor-pointer group">
+                          <div className="flex items-center space-x-3 text-slate-500 group-hover:text-blue-500 transition-colors">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                            <span className="text-sm font-medium">Đính kèm File Mô tả (JD)...</span>
+                          </div>
+                          <input
+                            type="file"
+                            accept=".pdf,.docx,.doc,.txt"
+                            onChange={(e) => setJdFile(e.target.files?.[0] || null)}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          />
+                        </div>
+                      )
                     ) : (
-                      <div className="w-full bg-white border border-slate-200 border-dashed rounded-xl px-4 py-3 hover:bg-slate-50 transition-colors relative cursor-pointer group">
-                        <div className="flex items-center space-x-3 text-slate-500 group-hover:text-blue-500 transition-colors">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                          <span className="text-sm font-medium">Đính kèm File Mô tả (JD)...</span>
-                        </div>
-                        <input
-                          type="file"
-                          accept=".pdf,.docx,.doc,.txt"
-                          onChange={(e) => setJdFile(e.target.files?.[0] || null)}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        />
+                      <div className="w-full bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                        {savedJDs.length === 0 ? (
+                          <div className="p-4 text-center text-sm text-slate-500">
+                            Chưa có JD nào trong kho.
+                          </div>
+                        ) : (
+                          <div className="max-h-[160px] overflow-y-auto custom-scrollbar p-2 space-y-1">
+                            {savedJDs.map(jd => (
+                              <div
+                                key={jd.id}
+                                onClick={() => setSelectedJDId(selectedJDId === jd.id ? "" : jd.id)}
+                                className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${
+                                  selectedJDId === jd.id ? "bg-blue-50 border border-blue-200" : "hover:bg-slate-50 border border-transparent"
+                                }`}
+                              >
+                                <div className="flex items-center space-x-2 overflow-hidden">
+                                  <svg className={`w-5 h-5 flex-shrink-0 ${selectedJDId === jd.id ? "text-blue-500" : "text-slate-400"}`} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" /></svg>
+                                  <span className={`text-sm truncate ${selectedJDId === jd.id ? "text-blue-700 font-semibold" : "text-slate-700"}`}>{jd.file_name}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handlePreview(e, jd.id, jd.file_name, "jd")}
+                                  className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                  title="Xem trước"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -456,7 +543,9 @@ export default function UploadPage() {
               <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <SparklesIcon className="w-8 h-8 text-blue-600" />
               </div>
-              <h3 className="text-2xl font-bold text-slate-800">Đang chuẩn bị phiên phỏng vấn</h3>
+              <h3 className="text-2xl font-bold text-slate-800">
+                {isOptimizeCV ? "Đang phân tích và tối ưu CV" : "Đang chuẩn bị phiên phỏng vấn"}
+              </h3>
               <p className="text-slate-500 mt-2 text-sm">Vui lòng không đóng trình duyệt trong quá trình này.</p>
             </div>
 
@@ -518,7 +607,9 @@ export default function UploadPage() {
                     )}
                 </div>
                 <div className="flex-1">
-                  <p className={`text-sm font-semibold ${loadingStep === "analyze" ? "text-slate-800" : "text-slate-500"}`}>AI đang phân tích & tạo câu hỏi</p>
+                  <p className={`text-sm font-semibold ${loadingStep === "analyze" ? "text-slate-800" : "text-slate-500"}`}>
+                    {isOptimizeCV ? "AI đang phân tích & tạo gợi ý tối ưu" : "AI đang phân tích & tạo câu hỏi"}
+                  </p>
                   {loadingStep === "analyze" && (
                     <p className="text-xs text-blue-600 mt-1 animate-pulse">Có thể mất 30 giây đến 2 phút...</p>
                   )}

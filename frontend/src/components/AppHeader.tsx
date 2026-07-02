@@ -1,6 +1,6 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { HomeIcon, ChartBarIcon, ClockIcon, Bars3Icon, XMarkIcon, ArrowRightOnRectangleIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, ChartBarIcon, ClockIcon, Bars3Icon, XMarkIcon, ArrowRightOnRectangleIcon, DocumentCheckIcon } from "@heroicons/react/24/outline";
 import React, { useState } from "react";
 
 const NavItem = ({ 
@@ -73,6 +73,7 @@ export default function AppHeader() {
             {user && (
               <>
                 <NavItem isActive={getIsActive("/dashboard")} onClick={() => handleNavClick("/dashboard")} icon={ChartBarIcon} label="Tạo phiên" />
+                <NavItem isActive={getIsActive("/optimize-cv")} onClick={() => handleNavClick("/optimize-cv")} icon={DocumentCheckIcon} label="Tối ưu CV" />
                 <NavItem isActive={getIsActive("/history")} onClick={() => handleNavClick("/history")} icon={ClockIcon} label="Lịch sử" />
               </>
             )}
@@ -116,6 +117,7 @@ export default function AppHeader() {
               {user && (
                 <>
                   <NavItem isActive={getIsActive("/dashboard")} onClick={() => handleNavClick("/dashboard")} icon={ChartBarIcon} label="Tạo phiên" />
+                  <NavItem isActive={getIsActive("/optimize-cv")} onClick={() => handleNavClick("/optimize-cv")} icon={DocumentCheckIcon} label="Tối ưu CV" />
                   <NavItem isActive={getIsActive("/history")} onClick={() => handleNavClick("/history")} icon={ClockIcon} label="Lịch sử" />
                 </>
               )}

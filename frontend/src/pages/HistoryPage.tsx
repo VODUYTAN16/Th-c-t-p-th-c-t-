@@ -161,6 +161,9 @@ export default function HistoryPage() {
   const completedCount = sessions.filter((s) => s.status === "completed").length;
 
   const filteredSessions = sessions.filter((s) => {
+    if (s.title && (s.title.startsWith("Tối ưu CV") || s.title.includes("[CV_OPT]"))) return false; // Hide CV optimization sessions
+    if (s.position_applied && s.position_applied.includes("[CV_OPT]")) return false;
+    
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch =
       (s.title || s.position_applied || "").toLowerCase().includes(searchLower) ||

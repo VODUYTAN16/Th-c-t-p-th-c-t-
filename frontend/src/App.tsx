@@ -25,6 +25,7 @@ export default function App() {
       <Route path="/register" element={<RegisterPage />} />
 
       <Route path="/dashboard" element={<ProtectedPage><UploadPage /></ProtectedPage>} />
+      <Route path="/optimize-cv" element={<ProtectedPage><UploadPage /></ProtectedPage>} />
       <Route path="/history" element={<ProtectedPage><HistoryPage /></ProtectedPage>} />
       <Route path="/interview/:sessionId" element={<ProtectedPage><InterviewPage /></ProtectedPage>} />
       <Route path="/report/:sessionId" element={<ProtectedPage><ReportPage /></ProtectedPage>} />
